@@ -10,7 +10,8 @@ import userAuth from '../middlewares/userAuth.js'
 const wishlistRouter = express.Router()
 
 // All routes require authentication
-wishlistRouter.get('/', userAuth, getWishlist)
+wishlistRouter.get('/get', userAuth, getWishlist)
+
 wishlistRouter.post('/add', userAuth, addToWishlist)
 wishlistRouter.delete('/remove/:trekId', userAuth, removeFromWishlist)
 wishlistRouter.get('/check/:trekId', userAuth, checkWishlist)

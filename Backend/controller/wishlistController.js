@@ -4,32 +4,49 @@ import Trek from '../model/trekModel.js'
 // Get user wishlist
 export const getWishlist = async (req, res) => {
   try {
-    // Get user ID from authenticated user
-    const userId = req.body.userId
+    const userId = req.user?.id
+    console.log('🔐 Decoded user ID from token:', userId)
 
-    // Find or create wishlist
-    let wishlist = await Wishlist.findOne({ userId }).populate({
+    if (!userId) {
+      return res
+        .status(400)
+        .json({ success: false, message: 'User ID not found in token' })
+    }
+
+    // Try to find the user's wishlist
+    let wishlist = await Wishlist.findOne({ userId })
+
+    // If it doesn't exist, create an empty one
+    if (!wishlist) {
+      wishlist = new Wishlist({ userId, treks: [] })
+      await wishlist.save()
+      console.log('🆕 Created new empty wishlist for user:', userId)
+    }
+
+    // ✅ Populate treks and their associated company (userId)
+    await wishlist.populate({
       path: 'treks',
-      select: 'title location duration price rating images difficulty',
+      select: 'title location duration price rating images difficulty userId',
       populate: {
-        path: 'companyId',
+        path: 'userId', // ✅ Correct field from Trek model
+        model: 'Company',
         select: 'name',
       },
     })
 
-    if (!wishlist) {
-      wishlist = new Wishlist({ userId, treks: [] })
-      await wishlist.save()
-    }
+    const trekIds = (wishlist.treks || []).map((trek) => trek._id)
+    console.log('📦 Trek IDs in Wishlist:', trekIds)
 
     return res.status(200).json({
       success: true,
       wishlist,
+      trekIds,
     })
   } catch (error) {
+    console.error('❌ Error fetching wishlist:', error)
     return res.status(500).json({
       success: false,
-      message: error.message,
+      message: error.message || 'Server Error',
     })
   }
 }
@@ -38,11 +55,15 @@ export const getWishlist = async (req, res) => {
 export const addToWishlist = async (req, res) => {
   try {
     const { trekId } = req.body
+    const userId = req.user?.id
 
-    // Get user ID from authenticated user
-    const userId = req.body.userId
+    if (!userId) {
+      return res.status(400).json({
+        success: false,
+        message: 'User not authenticated',
+      })
+    }
 
-    // Check if trek exists
     const trek = await Trek.findById(trekId)
     if (!trek) {
       return res.status(404).json({
@@ -51,21 +72,17 @@ export const addToWishlist = async (req, res) => {
       })
     }
 
-    // Find or create wishlist
     let wishlist = await Wishlist.findOne({ userId })
 
     if (!wishlist) {
       wishlist = new Wishlist({ userId, treks: [trekId] })
     } else {
-      // Check if trek is already in wishlist
       if (wishlist.treks.includes(trekId)) {
         return res.status(400).json({
           success: false,
           message: 'Trek already in wishlist',
         })
       }
-
-      // Add trek to wishlist
       wishlist.treks.push(trekId)
     }
 
@@ -88,11 +105,15 @@ export const addToWishlist = async (req, res) => {
 export const removeFromWishlist = async (req, res) => {
   try {
     const { trekId } = req.params
+    const userId = req.user?.id
 
-    // Get user ID from authenticated user
-    const userId = req.body.userId
+    if (!userId) {
+      return res.status(400).json({
+        success: false,
+        message: 'User not authenticated',
+      })
+    }
 
-    // Find wishlist
     const wishlist = await Wishlist.findOne({ userId })
 
     if (!wishlist) {
@@ -102,7 +123,6 @@ export const removeFromWishlist = async (req, res) => {
       })
     }
 
-    // Check if trek is in wishlist
     if (!wishlist.treks.includes(trekId)) {
       return res.status(400).json({
         success: false,
@@ -110,7 +130,6 @@ export const removeFromWishlist = async (req, res) => {
       })
     }
 
-    // Remove trek from wishlist
     wishlist.treks = wishlist.treks.filter((id) => id.toString() !== trekId)
     await wishlist.save()
 
@@ -131,22 +150,18 @@ export const removeFromWishlist = async (req, res) => {
 export const checkWishlist = async (req, res) => {
   try {
     const { trekId } = req.params
+    const userId = req.user?.id
 
-    // Get user ID from authenticated user
-    const userId = req.body.userId
-
-    // Find wishlist
-    const wishlist = await Wishlist.findOne({ userId })
-
-    if (!wishlist) {
-      return res.status(200).json({
-        success: true,
-        isInWishlist: false,
+    if (!userId) {
+      return res.status(400).json({
+        success: false,
+        message: 'User not authenticated',
       })
     }
 
-    // Check if trek is in wishlist
-    const isInWishlist = wishlist.treks.includes(trekId)
+    const wishlist = await Wishlist.findOne({ userId })
+
+    const isInWishlist = wishlist?.treks.includes(trekId) || false
 
     return res.status(200).json({
       success: true,

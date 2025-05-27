@@ -166,9 +166,8 @@ export const getUserBookings = async (req, res) => {
 // Get company bookings
 export const getCompanyBookings = async (req, res) => {
   try {
-    // Get company ID from authenticated user
-    const companyId = req.body.userId
-
+    const companyId = req.user.id // ✅ Get from token via middleware
+    console.log('Company ID:', companyId)
     const bookings = await Booking.find({ companyId })
       .populate('trekId', 'title location duration')
       .populate('userId', 'name email')

@@ -14,7 +14,7 @@ import bookingRouter from './routes/bookingRoutes.js'
 import wishlistRouter from './routes/wishlistRoutes.js'
 import reviewRouter from './routes/reviewRoutes.js'
 import adminRouter from './routes/adminRoutes.js'
-
+import recommendationRoutes from './routes/recommendationRoutes.js'
 // Import database connection
 import connectDB from './config/mongodb.js'
 
@@ -53,6 +53,7 @@ app.use('/api/booking', bookingRouter)
 app.use('/api/wishlist', wishlistRouter)
 app.use('/api/review', reviewRouter)
 app.use('/api/admin', adminRouter)
+app.use('/api/recommendations', recommendationRoutes)
 
 // Error handling middleware
 app.use((err, req, res, next) => {
