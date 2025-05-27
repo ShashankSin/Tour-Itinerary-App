@@ -86,7 +86,7 @@ const EditItineraryScreen = ({ route, navigation }) => {
         return
       }
 
-      const url = `http://192.168.1.69:5000/api/trek/itinerary/${id}` // ✅ fixed route
+      const url = `http://10.0.2.2:5000/api/trek/itinerary/${id}` // ✅ fixed route
       console.log('📡 Fetching from:', url)
 
       const response = await fetch(url, {
@@ -208,7 +208,7 @@ const EditItineraryScreen = ({ route, navigation }) => {
       }
 
       const response = await fetch(
-        `http://192.168.1.69:5000/api/trek/update/${trekId}`, // ✅ make sure `trekId` is defined
+        `http://10.0.2.2:5000/api/trek/update/${trekId}`, // ✅ make sure `trekId` is defined
         {
           method: 'PUT',
           headers: {

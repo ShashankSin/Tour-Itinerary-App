@@ -34,6 +34,7 @@ import AdminDashboardScreen from '../screens/admin/AdminDashboardScreen'
 import AdminCompaniesScreen from '../screens/admin/AdminCompaniesScreen'
 import AdminUsersScreen from '../screens/admin/AdminUsersScreen'
 import AdminItinerariesScreen from '../screens/admin/AdminItinerariesScreen'
+import BookingDetailScreen from '../screens/user/BookingDetailsScreen'
 
 const Stack = createStackNavigator()
 const Tab = createBottomTabNavigator()
@@ -208,6 +209,7 @@ const AppNavigator = ({ authState, setUser }) => {
           <Stack.Screen name="Booking" component={BookingScreen} />
           <Stack.Screen name="Payment" component={PaymentScreen} />
           <Stack.Screen name="BudgetPlanner" component={BudgetPlannerScreen} />
+          <Stack.Screen name="Bookings" component={BookingDetailScreen} />
         </>
       )}
     </Stack.Navigator>

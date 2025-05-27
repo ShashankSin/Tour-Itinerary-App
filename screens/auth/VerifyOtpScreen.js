@@ -22,7 +22,7 @@ export default function VerifyOtpScreen({ route, navigation }) {
     setLoading(true)
     try {
       const response = await fetch(
-        'http://192.168.1.69:5000/api/auth/verify-account',
+        'http://10.0.2.2:5000/api/auth/verify-account',
         {
           method: 'POST',
           headers: {

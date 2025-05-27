@@ -53,7 +53,7 @@ export default function SignupScreen({ route, navigation }) {
 
     try {
       const response = await fetch(
-        'http://192.168.1.69:5000/api/auth/registerUser',
+        'http://10.0.2.2:5000/api/auth/registerUser',
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },

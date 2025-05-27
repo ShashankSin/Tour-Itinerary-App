@@ -93,7 +93,7 @@ const AdminItinerariesScreen = () => {
 
       // Send the PUT request with token in header
       const response = await axios.put(
-        `http://192.168.1.69:5000/api/trek/approve/${itineraryId}`,
+        `http://10.0.2.2:5000/api/trek/approve/${itineraryId}`,
         requestData,
         {
           headers: {

@@ -569,7 +569,7 @@ function CompanyProfileScreen({ navigation, setUser }) {
                   const token = await AsyncStorage.getItem('token')
 
                   // Call backend logout API
-                  await fetch('http://192.168.1.69:5000/api/auth/logoutUser', {
+                  await fetch('http://10.0.2.2:5000/api/auth/logoutUser', {
                     method: 'POST',
                     headers: {
                       'Content-Type': 'application/json',

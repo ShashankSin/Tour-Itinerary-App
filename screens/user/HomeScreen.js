@@ -24,7 +24,7 @@ import { jwt_decode } from 'jwt-decode'
 const { width } = Dimensions.get('window')
 
 const fetchItineraries = async () => {
-  const res = await axios.get(`http://192.168.1.69:5000/api/trek/allitinerary`)
+  const res = await axios.get(`http://10.0.2.2:5000/api/trek/allitinerary`)
   const data = res.data.treks
   if (!Array.isArray(data)) throw new Error('Itineraries must be an array')
   return data.filter((itinerary) => itinerary.isApproved === true)

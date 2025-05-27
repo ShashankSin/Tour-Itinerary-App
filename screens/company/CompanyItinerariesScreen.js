@@ -93,7 +93,7 @@ function CompanyItinerariesScreen() {
       const userId = decoded.id
       if (!userId) throw new Error('User ID not found in token')
 
-      const response = await fetch('http://192.168.1.69:5000/api/trek/all', {
+      const response = await fetch('http://10.0.2.2:5000/api/trek/all', {
         headers: {
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',
@@ -144,7 +144,7 @@ function CompanyItinerariesScreen() {
       }
 
       // API call to create the trek
-      const response = await fetch('http://192.168.1.69:5000/api/trek/create', {
+      const response = await fetch('http://10.0.2.2:5000/api/trek/create', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -207,16 +207,13 @@ function CompanyItinerariesScreen() {
               const token = await AsyncStorage.getItem('token') // Adjust key if you used a different one
               const decoded = jwtDecode(token)
               // API call would go here
-              await fetch(
-                `http://192.168.1.69:5000/api/trek/delete/${trekId}`,
-                {
-                  method: 'DELETE',
-                  headers: {
-                    Authorization: `Bearer ${token}`,
-                    'Content-Type': 'application/json',
-                  },
-                }
-              )
+              await fetch(`http://10.0.2.2:5000/api/trek/delete/${trekId}`, {
+                method: 'DELETE',
+                headers: {
+                  Authorization: `Bearer ${token}`,
+                  'Content-Type': 'application/json',
+                },
+              })
 
               // Mock success for demonstration
               setTimeout(() => {

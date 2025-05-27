@@ -13,7 +13,7 @@ import {
 import { Ionicons } from '@expo/vector-icons'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { jwtDecode } from 'jwt-decode'
-
+import axios from 'axios'
 function CompanyBookingsScreen({ navigation }) {
   const [loading, setLoading] = useState(false)
   const [bookings, setBookings] = useState([])
@@ -41,89 +41,24 @@ function CompanyBookingsScreen({ navigation }) {
       }
 
       const decoded = jwtDecode(token)
+      console.log('✅ Decoded token:', decoded)
 
-      // Mock data - replace with actual API call
-      setTimeout(() => {
-        const mockBookings = [
-          {
-            id: '1',
-            customerName: 'John Doe',
-            customerEmail: 'john@example.com',
-            customerPhone: '+1234567890',
-            trekName: 'Everest Base Camp',
-            trekId: 'trek1',
-            bookingDate: '2023-05-15',
-            trekDate: '2023-06-20',
-            participants: 2,
-            amount: 1200,
-            status: 'confirmed',
-            paymentStatus: 'paid',
+      const response = await axios.get(
+        'http://10.0.2.2:5000/api/booking/company',
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
           },
-          {
-            id: '2',
-            customerName: 'Jane Smith',
-            customerEmail: 'jane@example.com',
-            customerPhone: '+0987654321',
-            trekName: 'Annapurna Circuit',
-            trekId: 'trek2',
-            bookingDate: '2023-05-18',
-            trekDate: '2023-07-05',
-            participants: 1,
-            amount: 950,
-            status: 'pending',
-            paymentStatus: 'partial',
-          },
-          {
-            id: '3',
-            customerName: 'Mike Johnson',
-            customerEmail: 'mike@example.com',
-            customerPhone: '+1122334455',
-            trekName: 'Langtang Valley',
-            trekId: 'trek3',
-            bookingDate: '2023-05-10',
-            trekDate: '2023-06-15',
-            participants: 4,
-            amount: 2400,
-            status: 'completed',
-            paymentStatus: 'paid',
-          },
-          {
-            id: '4',
-            customerName: 'Sarah Williams',
-            customerEmail: 'sarah@example.com',
-            customerPhone: '+5566778899',
-            trekName: 'Everest Base Camp',
-            trekId: 'trek1',
-            bookingDate: '2023-05-20',
-            trekDate: '2023-08-10',
-            participants: 2,
-            amount: 1200,
-            status: 'cancelled',
-            paymentStatus: 'refunded',
-          },
-          {
-            id: '5',
-            customerName: 'Robert Brown',
-            customerEmail: 'robert@example.com',
-            customerPhone: '+1231231234',
-            trekName: 'Annapurna Base Camp',
-            trekId: 'trek4',
-            bookingDate: '2023-05-22',
-            trekDate: '2023-07-15',
-            participants: 3,
-            amount: 1800,
-            status: 'confirmed',
-            paymentStatus: 'paid',
-          },
-        ]
+        }
+      )
 
-        setBookings(mockBookings)
-        setFilteredBookings(mockBookings)
-        setLoading(false)
-      }, 1000)
+      const bookings = response.data.bookings // Ensure your backend returns `{ bookings: [...] }`
+      setBookings(bookings)
+      setFilteredBookings(bookings)
     } catch (error) {
-      console.error('Error fetching bookings:', error)
+      console.error('❌ Error fetching bookings:', error)
       Alert.alert('Error', 'Failed to fetch bookings')
+    } finally {
       setLoading(false)
     }
   }

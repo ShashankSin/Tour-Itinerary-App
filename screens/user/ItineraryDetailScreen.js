@@ -57,7 +57,7 @@ const ItineraryDetailScreen = ({ navigation }) => {
   const getItineraryDetails = async () => {
     try {
       const response = await axios.get(
-        `http://192.168.1.69:5000/api/trek/public/itinerary/${itineraryId}`
+        `http://10.0.2.2:5000/api/trek/public/itinerary/${itineraryId}`
       )
       setItinerary(response.data)
     } catch (err) {
@@ -81,7 +81,7 @@ const ItineraryDetailScreen = ({ navigation }) => {
       const userId = decoded.id
 
       const response = await axios.get(
-        `http://192.168.1.69:5000/api/review/trek/${itineraryId}`,
+        `http://10.0.2.2:5000/api/review/trek/${itineraryId}`,
         {
           headers: {
             Authorization: `Bearer ${token}`, // Optional if backend uses auth middleware
@@ -105,7 +105,7 @@ const ItineraryDetailScreen = ({ navigation }) => {
 
       setWishlistLoading(true)
       const response = await axios.get(
-        `http://192.168.1.69:5000/api/wishlist/check/${itineraryId}`,
+        `http://10.0.2.2:5000/api/wishlist/check/${itineraryId}`,
         {
           headers: { Authorization: `Bearer ${token}` },
         }
@@ -138,7 +138,7 @@ const ItineraryDetailScreen = ({ navigation }) => {
       if (isInWishlist) {
         // Remove from wishlist
         await axios.delete(
-          `http://192.168.1.69:5000/api/wishlist/remove/${itineraryId}`,
+          `http://10.0.2.2:5000/api/wishlist/remove/${itineraryId}`,
           {
             headers: { Authorization: `Bearer ${token}` },
           }
@@ -147,7 +147,7 @@ const ItineraryDetailScreen = ({ navigation }) => {
       } else {
         // Add to wishlist
         await axios.post(
-          `http://192.168.1.69:5000/api/wishlist/add`,
+          `http://10.0.2.2:5000/api/wishlist/add`,
           { trekId: itineraryId },
           {
             headers: { Authorization: `Bearer ${token}` },
@@ -179,7 +179,7 @@ const ItineraryDetailScreen = ({ navigation }) => {
       setReviewSubmitting(true)
 
       await axios.post(
-        'http://192.168.1.69:5000/api/review/create',
+        'http://10.0.2.2:5000/api/review/create',
         {
           userId,
           trekId: itineraryId,

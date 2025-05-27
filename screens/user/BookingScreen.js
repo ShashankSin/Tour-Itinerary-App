@@ -62,7 +62,7 @@ function BookingScreen({ navigation, route }) {
       try {
         setItineraryLoading(true)
         const response = await axios.get(
-          `http://192.168.1.69:5000/api/trek/public/itinerary/${trekId}`
+          `http://10.0.2.2:5000/api/trek/public/itinerary/${trekId}`
         )
         console.log('Fetched itinerary:', response.data)
         setItinerary(response.data)
@@ -238,7 +238,7 @@ function BookingScreen({ navigation, route }) {
       console.log('Booking Data:', JSON.stringify(bookingData, null, 2))
 
       const response = await axios.post(
-        'http://192.168.1.69:5000/api/booking/create',
+        'http://10.0.2.2:5000/api/booking/create',
         bookingData,
         {
           headers: {
