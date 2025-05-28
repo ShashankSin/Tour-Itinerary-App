@@ -10,6 +10,7 @@ import {
   rejectTrek,
   getitinerary,
   useritineraryfetch,
+  searchTreks,
 } from '../controller/trekController.js'
 import adminAuth from '../middlewares/adminAuth.js'
 import companyAuth from '../middlewares/companyAuth.js'
@@ -17,6 +18,7 @@ import companyAuth from '../middlewares/companyAuth.js'
 const trekRouter = express.Router()
 
 // Public routes
+trekRouter.get('/search', searchTreks)
 trekRouter.get('/all', companyAuth, getAllTreks)
 trekRouter.get('/allitinerary', getTrek)
 trekRouter.get('/itinerary/:id', companyAuth, getitinerary)

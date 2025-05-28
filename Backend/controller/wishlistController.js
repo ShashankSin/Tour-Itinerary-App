@@ -23,12 +23,13 @@ export const getWishlist = async (req, res) => {
       console.log('🆕 Created new empty wishlist for user:', userId)
     }
 
-    // ✅ Populate treks and their associated company (userId)
+    // Populate treks and their associated company
     await wishlist.populate({
       path: 'treks',
-      select: 'title location duration price rating images difficulty userId',
+      select:
+        'title location duration price rating images difficulty companyId',
       populate: {
-        path: 'userId', // ✅ Correct field from Trek model
+        path: 'companyId',
         model: 'Company',
         select: 'name',
       },

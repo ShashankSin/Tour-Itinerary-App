@@ -67,7 +67,7 @@ const trekSchema = new mongoose.Schema(
         type: String,
       },
     ],
-    userId: {
+    companyId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Company',
       required: true,

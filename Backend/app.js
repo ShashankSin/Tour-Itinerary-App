@@ -2,6 +2,7 @@ import express from 'express'
 import cookieParser from 'cookie-parser'
 import cors from 'cors'
 import dotenv from 'dotenv'
+import mongoose from 'mongoose'
 
 // Load environment variables
 dotenv.config()
@@ -15,6 +16,9 @@ import wishlistRouter from './routes/wishlistRoutes.js'
 import reviewRouter from './routes/reviewRoutes.js'
 import adminRouter from './routes/adminRoutes.js'
 import recommendationRoutes from './routes/recommendationRoutes.js'
+import companyAuthRoutes from './routes/companyAuthRoutes.js'
+import dashboardRoutes from './routes/dashboardRoutes.js'
+
 // Import database connection
 import connectDB from './config/mongodb.js'
 
@@ -54,6 +58,8 @@ app.use('/api/wishlist', wishlistRouter)
 app.use('/api/review', reviewRouter)
 app.use('/api/admin', adminRouter)
 app.use('/api/recommendations', recommendationRoutes)
+app.use('/api/auth/company', companyAuthRoutes)
+app.use('/api/dashboard', dashboardRoutes)
 
 // Error handling middleware
 app.use((err, req, res, next) => {

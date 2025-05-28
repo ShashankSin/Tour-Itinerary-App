@@ -34,9 +34,13 @@ export const registerUser = async (req, res) => {
 
     await user.save()
 
-    const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, {
-      expiresIn: '1d',
-    })
+    const token = jwt.sign(
+      { id: user._id, role: user.role },
+      process.env.JWT_SECRET,
+      {
+        expiresIn: '1d',
+      }
+    )
 
     res.cookie('token', token, {
       httpOnly: true,
@@ -101,9 +105,13 @@ export const loginUser = async (req, res) => {
     }
 
     //! Generate Token
-    const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, {
-      expiresIn: '1d',
-    })
+    const token = jwt.sign(
+      { id: user._id, role: user.role },
+      process.env.JWT_SECRET,
+      {
+        expiresIn: '1d',
+      }
+    )
 
     //! Cookie
     res.cookie('token', token, {
@@ -202,22 +210,10 @@ export const verifyOtp = async (req, res) => {
       })
     }
 
-    // Debug logs
-    console.log('Received OTP:', otp)
-    console.log('Stored OTP:', user.verifyOtp)
-    console.log('Expiry:', new Date(user.verifyOtpExpiry))
-    console.log('Now:', new Date())
-
     if (user.isVerified) {
-      const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, {
-        expiresIn: '1d',
-      })
-
       return res.status(200).json({
         success: true,
         message: 'User already verified',
-        token,
-        userId: user._id,
         role: user.role,
       })
     }
@@ -239,26 +235,17 @@ export const verifyOtp = async (req, res) => {
       })
     }
 
-    // Update verification status
     user.isVerified = true
     user.verifyOtp = ''
     user.verifyOtpExpiry = 0
     await user.save()
 
-    // Create token
-    const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, {
-      expiresIn: '1d',
-    })
-
     return res.status(200).json({
       success: true,
       message: 'Account verified successfully',
-      token,
-      userId: user._id,
       role: user.role,
     })
   } catch (error) {
-    console.error('Verification Error:', error)
     return res.status(500).json({
       success: false,
       message: 'Error verifying account',

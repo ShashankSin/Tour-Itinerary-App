@@ -1,5 +1,5 @@
 import Trek from '../model/trekModel.js'
-import userModel from '../model/userModel.js'
+import companyModel from '../model/companyModel.js'
 import jwt from 'jsonwebtoken'
 import mongoose from 'mongoose'
 export const createTrek = async (req, res) => {
@@ -35,16 +35,16 @@ export const createTrek = async (req, res) => {
       })
     }
 
-    // Decode JWT token and extract userId
+    // Decode JWT token and extract companyId
     const decoded = jwt.verify(token, process.env.JWT_SECRET)
-    const userId = decoded.id
+    const companyId = decoded.id
 
-    // Get user and confirm role is 'company'
-    const user = await userModel.findById(userId).select('role')
-    if (!user || user.role !== 'company') {
+    // Get company
+    const company = await companyModel.findById(companyId)
+    if (!company) {
       return res.status(403).json({
         success: false,
-        message: 'Only companies can create treks',
+        message: 'Company not found',
       })
     }
 
@@ -65,7 +65,7 @@ export const createTrek = async (req, res) => {
       itinerary,
       inclusions,
       route,
-      userId,
+      companyId,
       isApproved: false,
     })
 
@@ -103,9 +103,9 @@ export const getAllTreks = async (req, res) => {
 
     const filter = {}
 
-    // Filter treks by company userId
+    // Filter treks by companyId
     if (req.companyId) {
-      filter.userId = req.companyId
+      filter.companyId = req.companyId
     }
 
     if (search) {
@@ -138,7 +138,7 @@ export const getAllTreks = async (req, res) => {
       .sort(sortObj)
       .skip(skip)
       .limit(Number(limit))
-      .populate('userId', 'name logo rating')
+      .populate('companyId', 'name logo rating')
       .lean()
 
     const total = await Trek.countDocuments(filter)
@@ -164,7 +164,7 @@ export const getAllTreks = async (req, res) => {
 // Get trek by ID
 export const getTrek = async (req, res) => {
   try {
-    const treks = await Trek.find().populate('userId', 'name email') // Adjust fields as needed
+    const treks = await Trek.find().populate('companyId', 'name email')
 
     return res.status(200).json({
       success: true,
@@ -190,7 +190,15 @@ export const updateTrek = async (req, res) => {
       })
     }
 
-    const updatedData = req.body // contains fields like title, location, etc.
+    const updatedData = { ...req.body }
+
+    // Normalize category and difficulty if provided
+    if (updatedData.category) {
+      updatedData.category = updatedData.category.toLowerCase()
+    }
+    if (updatedData.difficulty) {
+      updatedData.difficulty = updatedData.difficulty.toLowerCase()
+    }
 
     const updatedTrek = await Trek.findByIdAndUpdate(id, updatedData, {
       new: true,
@@ -237,7 +245,7 @@ export const deleteTrek = async (req, res) => {
       })
     }
 
-    if (trek.userId.toString() !== userId) {
+    if (trek.companyId.toString() !== userId) {
       return res.status(403).json({
         success: false,
         message: "Unauthorized: You don't own this trek",
@@ -265,7 +273,7 @@ export const deleteTrek = async (req, res) => {
 export const getCompanyTreks = async (req, res) => {
   try {
     // Get company ID from authenticated user
-    const companyId = req.body.userId
+    const companyId = req.body.companyId
 
     const treks = await Trek.find({ companyId })
 
@@ -281,12 +289,19 @@ export const getCompanyTreks = async (req, res) => {
   }
 }
 
-// Admin: Approve trek
+// Approve trek
 export const approveTrek = async (req, res) => {
   try {
     const { id } = req.params
-    const { isApproved } = req.body // will be true or false from frontend
 
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid trek ID',
+      })
+    }
+
+    // Check if trek exists
     const trek = await Trek.findById(id)
     if (!trek) {
       return res.status(404).json({
@@ -295,31 +310,39 @@ export const approveTrek = async (req, res) => {
       })
     }
 
-    trek.isApproved = isApproved // <-- set to true or false
+    // Update trek approval status
+    trek.isApproved = true
     await trek.save()
 
     return res.status(200).json({
       success: true,
-      message: `Trek ${
-        isApproved ? 'approved' : 'set to pending'
-      } successfully`,
+      message: 'Trek approved successfully',
+      trek,
     })
   } catch (error) {
+    console.error('Approve Trek Error:', error)
     return res.status(500).json({
       success: false,
-      message: error.message,
+      message: 'Failed to approve trek',
+      error: error.message,
     })
   }
 }
 
-// Admin: Reject trek
+// Reject trek
 export const rejectTrek = async (req, res) => {
   try {
     const { id } = req.params
-    const { reason } = req.body
 
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid trek ID',
+      })
+    }
+
+    // Check if trek exists
     const trek = await Trek.findById(id)
-
     if (!trek) {
       return res.status(404).json({
         success: false,
@@ -327,18 +350,21 @@ export const rejectTrek = async (req, res) => {
       })
     }
 
+    // Update trek approval status
     trek.isApproved = false
-    trek.rejectionReason = reason || 'Trek does not meet our standards'
     await trek.save()
 
     return res.status(200).json({
       success: true,
-      message: 'Trek rejected successfully',
+      message: 'Trek set to pending successfully',
+      trek,
     })
   } catch (error) {
+    console.error('Reject Trek Error:', error)
     return res.status(500).json({
       success: false,
-      message: error.message,
+      message: 'Failed to update trek status',
+      error: error.message,
     })
   }
 }
@@ -381,6 +407,15 @@ export const getitinerary = async (req, res) => {
 export const useritineraryfetch = async (req, res) => {
   try {
     const { id } = req.params
+
+    // Validate the ID
+    if (!id || id === 'undefined' || !mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid itinerary ID',
+      })
+    }
+
     const itinerary = await Trek.findById(id)
 
     if (!itinerary) {
@@ -393,5 +428,64 @@ export const useritineraryfetch = async (req, res) => {
   } catch (error) {
     console.error('Error fetching itinerary:', error)
     res.status(500).json({ success: false, message: 'Server error' })
+  }
+}
+
+export const searchTreks = async (req, res) => {
+  try {
+    const { query, filters } = req.query
+    const searchQuery = {}
+
+    // Basic text search
+    if (query) {
+      searchQuery.$or = [
+        { title: { $regex: query, $options: 'i' } },
+        { description: { $regex: query, $options: 'i' } },
+        { location: { $regex: query, $options: 'i' } },
+      ]
+    }
+
+    // Apply filters if provided
+    if (filters) {
+      const { difficulty, duration, priceMin, priceMax, category } =
+        JSON.parse(filters)
+
+      if (difficulty) {
+        searchQuery.difficulty = difficulty
+      }
+
+      if (duration) {
+        searchQuery.duration = { $lte: parseInt(duration) }
+      }
+
+      if (priceMin || priceMax) {
+        searchQuery.price = {}
+        if (priceMin) searchQuery.price.$gte = parseInt(priceMin)
+        if (priceMax) searchQuery.price.$lte = parseInt(priceMax)
+      }
+
+      if (category) {
+        searchQuery.category = category
+      }
+    }
+
+    // Only show approved treks
+    searchQuery.isApproved = true
+
+    const treks = await Trek.find(searchQuery)
+      .sort({ rating: -1, ratingCount: -1 })
+      .limit(20)
+
+    res.json({
+      success: true,
+      data: treks,
+    })
+  } catch (error) {
+    console.error('Search error:', error)
+    res.status(500).json({
+      success: false,
+      message: 'Error searching treks',
+      error: error.message,
+    })
   }
 }

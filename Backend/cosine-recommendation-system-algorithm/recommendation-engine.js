@@ -20,18 +20,28 @@ class TrekRecommendationEngine {
 
   // Create feature vector for a trek
   createTrekVector(trek) {
+    if (!trek) {
+      console.error('Invalid trek object provided to createTrekVector')
+      return [0, 0, 0, 0, 0, 0]
+    }
+
     return [
-      this.difficultyWeights[trek.difficulty] || 0,
-      this.categoryWeights[trek.category] || 0,
+      this.difficultyWeights[trek.difficulty?.toLowerCase()] || 0,
+      this.categoryWeights[trek.category?.toLowerCase()] || 0,
       Math.log(trek.duration + 1), // Log scale for duration
       Math.log(trek.price + 1), // Log scale for price
-      trek.rating,
+      trek.rating || 0,
       Math.log(trek.ratingCount + 1), // Log scale for rating count
     ]
   }
 
   // Create user preference vector based on their interactions
   async createUserVector(userId) {
+    if (!userId) {
+      console.error('Invalid userId provided to createUserVector')
+      return await this.getAverageVector()
+    }
+
     try {
       const [userReviews, userWishlist, userBookings] = await Promise.all([
         Review.find({ userId }).populate('trekId'),
@@ -40,9 +50,9 @@ class TrekRecommendationEngine {
       ])
 
       if (
-        userReviews.length === 0 &&
-        (!userWishlist || userWishlist.treks.length === 0) &&
-        userBookings.length === 0
+        !userReviews?.length &&
+        !userWishlist?.treks?.length &&
+        !userBookings?.length
       ) {
         return await this.getAverageVector()
       }
@@ -51,10 +61,10 @@ class TrekRecommendationEngine {
       let totalWeight = 0
 
       // Weight based on reviews (highest weight)
-      userReviews.forEach((review) => {
-        if (review.trekId) {
+      userReviews?.forEach((review) => {
+        if (review?.trekId) {
           const trekVector = this.createTrekVector(review.trekId)
-          const weight = review.rating // Use rating as weight
+          const weight = review.rating || 3 // Default to 3 if no rating
           for (let i = 0; i < trekVector.length; i++) {
             weightedVector[i] += trekVector[i] * weight
           }
@@ -63,8 +73,8 @@ class TrekRecommendationEngine {
       })
 
       // Weight based on bookings (medium weight)
-      userBookings.forEach((booking) => {
-        if (booking.trekId) {
+      userBookings?.forEach((booking) => {
+        if (booking?.trekId) {
           const trekVector = this.createTrekVector(booking.trekId)
           const weight = booking.status === 'completed' ? 4 : 3
           for (let i = 0; i < trekVector.length; i++) {
@@ -75,16 +85,16 @@ class TrekRecommendationEngine {
       })
 
       // Weight based on wishlist (lower weight)
-      if (userWishlist && userWishlist.treks) {
-        userWishlist.treks.forEach((trek) => {
+      userWishlist?.treks?.forEach((trek) => {
+        if (trek) {
           const trekVector = this.createTrekVector(trek)
           const weight = 2
           for (let i = 0; i < trekVector.length; i++) {
             weightedVector[i] += trekVector[i] * weight
           }
           totalWeight += weight
-        })
-      }
+        }
+      })
 
       // Normalize the vector
       if (totalWeight > 0) {
@@ -104,7 +114,7 @@ class TrekRecommendationEngine {
   async getAverageVector() {
     try {
       const treks = await Trek.find({ isApproved: true })
-      if (treks.length === 0) {
+      if (!treks?.length) {
         return [2, 2, 2, 7, 4, 3] // Default fallback vector
       }
 
@@ -130,8 +140,14 @@ class TrekRecommendationEngine {
 
   // Calculate cosine similarity between two vectors
   cosineSimilarity(vectorA, vectorB) {
+    if (!Array.isArray(vectorA) || !Array.isArray(vectorB)) {
+      console.error('Invalid vectors provided to cosineSimilarity')
+      return 0
+    }
+
     if (vectorA.length !== vectorB.length) {
-      throw new Error('Vectors must have the same length')
+      console.error('Vectors must have the same length')
+      return 0
     }
 
     let dotProduct = 0
@@ -139,9 +155,9 @@ class TrekRecommendationEngine {
     let magnitudeB = 0
 
     for (let i = 0; i < vectorA.length; i++) {
-      dotProduct += vectorA[i] * vectorB[i]
-      magnitudeA += vectorA[i] * vectorA[i]
-      magnitudeB += vectorB[i] * vectorB[i]
+      dotProduct += (vectorA[i] || 0) * (vectorB[i] || 0)
+      magnitudeA += (vectorA[i] || 0) * (vectorA[i] || 0)
+      magnitudeB += (vectorB[i] || 0) * (vectorB[i] || 0)
     }
 
     magnitudeA = Math.sqrt(magnitudeA)
@@ -156,6 +172,10 @@ class TrekRecommendationEngine {
 
   // Get recommendations for a user
   async getRecommendations(userId, limit = 5) {
+    if (!userId) {
+      throw new Error('User ID is required for recommendations')
+    }
+
     try {
       const userVector = await this.createUserVector(userId)
 
@@ -167,11 +187,15 @@ class TrekRecommendationEngine {
       ])
 
       const userInteractedTreks = new Set()
-      userReviews.forEach((r) => userInteractedTreks.add(r.trekId.toString()))
-      userBookings.forEach((b) => userInteractedTreks.add(b.trekId.toString()))
-      if (userWishlist && userWishlist.treks) {
-        userWishlist.treks.forEach((trekId) =>
-          userInteractedTreks.add(trekId.toString())
+      userReviews?.forEach(
+        (r) => r?.trekId && userInteractedTreks.add(r.trekId.toString())
+      )
+      userBookings?.forEach(
+        (b) => b?.trekId && userInteractedTreks.add(b.trekId.toString())
+      )
+      if (userWishlist?.treks) {
+        userWishlist.treks.forEach(
+          (trekId) => trekId && userInteractedTreks.add(trekId.toString())
         )
       }
 
@@ -181,102 +205,66 @@ class TrekRecommendationEngine {
         _id: { $nin: Array.from(userInteractedTreks) },
       })
 
+      if (!availableTreks?.length) {
+        return []
+      }
+
       // Calculate similarity for all available treks
       const recommendations = availableTreks
         .map((trek) => {
+          if (!trek) return null
           const trekVector = this.createTrekVector(trek)
           const similarity = this.cosineSimilarity(userVector, trekVector)
 
           return {
             trek,
             similarity,
-            score: similarity * trek.rating * Math.log(trek.ratingCount + 1),
+            score:
+              similarity *
+              (trek.rating || 3) *
+              Math.log((trek.ratingCount || 0) + 1),
           }
         })
+        .filter(Boolean) // Remove null entries
         .sort((a, b) => b.score - a.score)
         .slice(0, limit)
 
       return recommendations.map((rec) => ({
         ...rec.trek.toObject(),
-        similarityScore: rec.similarity,
-        recommendationScore: rec.score,
+        similarity: rec.similarity,
+        score: rec.score,
       }))
     } catch (error) {
       console.error('Error getting recommendations:', error)
-      return []
+      throw error
     }
   }
 
-  // Get trending treks based on recent ratings and bookings
+  // Get trending treks
   async getTrendingTreks(limit = 5) {
     try {
       const treks = await Trek.find({ isApproved: true })
+        .sort({ ratingCount: -1, rating: -1 })
+        .limit(limit)
 
-      return treks
-        .map((trek) => ({
-          ...trek.toObject(),
-          trendingScore:
-            trek.rating *
-            Math.log(trek.ratingCount + 1) *
-            (trek.ratingCount / 100),
-        }))
-        .sort((a, b) => b.trendingScore - a.trendingScore)
-        .slice(0, limit)
+      return treks || []
     } catch (error) {
       console.error('Error getting trending treks:', error)
-      return []
+      throw error
     }
   }
 
-  // Get popular destinations based on ratings and booking frequency
+  // Get popular destinations
   async getPopularDestinations(limit = 5) {
     try {
       const treks = await Trek.find({ isApproved: true })
-      const locationStats = {}
+        .sort({ bookingCount: -1, rating: -1 })
+        .limit(limit)
 
-      treks.forEach((trek) => {
-        if (!locationStats[trek.location]) {
-          locationStats[trek.location] = {
-            location: trek.location,
-            treks: [],
-            totalRatings: 0,
-          }
-        }
-
-        locationStats[trek.location].treks.push(trek)
-        locationStats[trek.location].totalRatings += trek.ratingCount
-      })
-
-      // Calculate stats for each location
-      Object.values(locationStats).forEach((stat) => {
-        const totalRating = stat.treks.reduce(
-          (sum, trek) => sum + trek.rating * trek.ratingCount,
-          0
-        )
-        const totalCount = stat.treks.reduce(
-          (sum, trek) => sum + trek.ratingCount,
-          0
-        )
-        stat.avgRating = totalCount > 0 ? totalRating / totalCount : 0
-        stat.popularityScore = stat.avgRating * Math.log(totalCount + 1)
-        stat.bestTrek = stat.treks.sort((a, b) => b.rating - a.rating)[0]
-      })
-
-      return Object.values(locationStats)
-        .sort((a, b) => b.popularityScore - a.popularityScore)
-        .slice(0, limit)
-        .map((stat) => ({
-          location: stat.location,
-          avgRating: Math.round(stat.avgRating * 10) / 10,
-          trekCount: stat.treks.length,
-          bestTrek: stat.bestTrek,
-          image:
-            stat.bestTrek.images?.[0] ||
-            'https://images.unsplash.com/photo-1506905925346-21bda4d32df4',
-        }))
+      return treks || []
     } catch (error) {
       console.error('Error getting popular destinations:', error)
-      return []
+      throw error
     }
   }
 }
