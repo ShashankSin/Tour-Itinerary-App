@@ -1,7 +1,11 @@
 import React from 'react'
-import { createStackNavigator } from '@react-navigation/stack'
+import { createNativeStackNavigator } from '@react-navigation/native-stack'
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs'
 import { Ionicons } from '@expo/vector-icons'
+import { useAuth } from '../context/AuthContext'
+import { BackHandler } from 'react-native'
+import { useEffect } from 'react'
+import { CommonActions } from '@react-navigation/native'
 
 // Auth Screens
 import LoginScreen from '../screens/auth/LoginScreen'
@@ -10,6 +14,8 @@ import UserTypeScreen from '../screens/auth/UserTypeScreen'
 import AdminLoginScreen from '../screens/auth/AdminLoginScreen'
 import ForgotPasswordScreen from '../screens/auth/ForgotPasswordScreen'
 import VerifyOtpScreen from '../screens/auth/VerifyOtpScreen'
+import CompanyLoginScreen from '../screens/auth/CompanyLoginScreen'
+import CompanySignupScreen from '../screens/auth/CompanySignupScreen'
 
 // User Screens
 import HomeScreen from '../screens/user/HomeScreen'
@@ -36,184 +42,153 @@ import AdminUsersScreen from '../screens/admin/AdminUsersScreen'
 import AdminItinerariesScreen from '../screens/admin/AdminItinerariesScreen'
 import BookingDetailScreen from '../screens/user/BookingDetailsScreen'
 
-const Stack = createStackNavigator()
+const Stack = createNativeStackNavigator()
 const Tab = createBottomTabNavigator()
 
 // USER BOTTOM TABS
-const UserBottomTabs = ({ authState }) => (
-  <Tab.Navigator
-    screenOptions={({ route }) => ({
-      headerShown: false,
-      tabBarIcon: ({ focused, color, size }) => {
-        const icons = {
-          Home: focused ? 'home' : 'home-outline',
-          Explore: focused ? 'search' : 'search-outline',
-          Wishlist: focused ? 'heart' : 'heart-outline',
-          Profile: focused ? 'person' : 'person-outline',
-        }
-        return <Ionicons name={icons[route.name]} size={size} color={color} />
-      },
-      tabBarActiveTintColor: '#10b981',
-      tabBarInactiveTintColor: 'gray',
-    })}
-  >
-    <Tab.Screen name="Home">
-      {(props) => <HomeScreen {...props} authState={authState} />}
-    </Tab.Screen>
-    <Tab.Screen name="Explore">
-      {(props) => <ExploreScreen {...props} authState={authState} />}
-    </Tab.Screen>
-    <Tab.Screen name="Wishlist">
-      {(props) => <WishlistScreen {...props} authState={authState} />}
-    </Tab.Screen>
-    <Tab.Screen name="Profile">
-      {(props) => <ProfileScreen {...props} authState={authState} />}
-    </Tab.Screen>
-  </Tab.Navigator>
-)
+const UserBottomTabs = () => {
+  return (
+    <Tab.Navigator
+      screenOptions={({ route }) => ({
+        headerShown: false,
+        tabBarIcon: ({ focused, color, size }) => {
+          const icons = {
+            Home: focused ? 'home' : 'home-outline',
+            Explore: focused ? 'search' : 'search-outline',
+            Wishlist: focused ? 'heart' : 'heart-outline',
+            Profile: focused ? 'person' : 'person-outline',
+          }
+          return <Ionicons name={icons[route.name]} size={size} color={color} />
+        },
+        tabBarActiveTintColor: '#10b981',
+        tabBarInactiveTintColor: 'gray',
+      })}
+    >
+      <Tab.Screen name="Home" component={HomeScreen} />
+      <Tab.Screen name="Explore" component={ExploreScreen} />
+      <Tab.Screen name="Wishlist" component={WishlistScreen} />
+      <Tab.Screen name="Profile" component={ProfileScreen} />
+    </Tab.Navigator>
+  )
+}
 
 // COMPANY BOTTOM TABS
-const CompanyBottomTabs = ({ authState, setUser }) => (
-  <Tab.Navigator
-    screenOptions={({ route }) => ({
-      headerShown: false,
-      tabBarIcon: ({ focused, color, size }) => {
-        const icons = {
-          Dashboard: focused ? 'speedometer' : 'speedometer-outline',
-          Itineraries: focused ? 'reader' : 'reader-outline',
-          Bookings: focused ? 'clipboard' : 'clipboard-outline',
-          Profile: focused ? 'person' : 'person-outline',
-        }
-        return <Ionicons name={icons[route.name]} size={size} color={color} />
-      },
-      tabBarActiveTintColor: '#10b981',
-      tabBarInactiveTintColor: 'gray',
-    })}
-  >
-    <Tab.Screen name="Dashboard">
-      {(props) => <CompanyDashboardScreen {...props} authState={authState} />}
-    </Tab.Screen>
-    <Tab.Screen name="Itineraries">
-      {(props) => <CompanyItinerariesScreen {...props} authState={authState} />}
-    </Tab.Screen>
-    <Tab.Screen name="Bookings">
-      {(props) => <CompanyBookingsScreen {...props} authState={authState} />}
-    </Tab.Screen>
-    <Tab.Screen name="Profile">
-      {(props) => (
-        <CompanyProfileScreen
-          {...props}
-          authState={authState}
-          setUser={setUser} // 🔥 This fixes your logout
-        />
-      )}
-    </Tab.Screen>
-  </Tab.Navigator>
-)
+const CompanyBottomTabs = () => {
+  return (
+    <Tab.Navigator
+      screenOptions={({ route }) => ({
+        headerShown: false,
+        tabBarIcon: ({ focused, color, size }) => {
+          const icons = {
+            Dashboard: focused ? 'speedometer' : 'speedometer-outline',
+            Itineraries: focused ? 'reader' : 'reader-outline',
+            Bookings: focused ? 'clipboard' : 'clipboard-outline',
+            Profile: focused ? 'person' : 'person-outline',
+          }
+          return <Ionicons name={icons[route.name]} size={size} color={color} />
+        },
+        tabBarActiveTintColor: '#10b981',
+        tabBarInactiveTintColor: 'gray',
+      })}
+    >
+      <Tab.Screen name="Dashboard" component={CompanyDashboardScreen} />
+      <Tab.Screen name="Itineraries" component={CompanyItinerariesScreen} />
+      <Tab.Screen name="Bookings" component={CompanyBookingsScreen} />
+      <Tab.Screen name="Profile" component={CompanyProfileScreen} />
+    </Tab.Navigator>
+  )
+}
 
 // ADMIN BOTTOM TABS
-const AdminBottomTabs = ({ authState }) => (
-  <Tab.Navigator
-    screenOptions={({ route }) => ({
-      headerShown: false,
-      tabBarIcon: ({ focused, color, size }) => {
-        const icons = {
-          Dashboard: focused ? 'grid' : 'grid-outline',
-          Companies: focused ? 'business' : 'business-outline',
-          Users: focused ? 'people' : 'people-outline',
-          Itineraries: focused ? 'map' : 'map-outline',
-        }
-        return <Ionicons name={icons[route.name]} size={size} color={color} />
-      },
-      tabBarActiveTintColor: '#10b981',
-      tabBarInactiveTintColor: 'gray',
-    })}
-  >
-    <Tab.Screen name="Dashboard">
-      {(props) => <AdminDashboardScreen {...props} authState={authState} />}
-    </Tab.Screen>
-    <Tab.Screen name="Companies">
-      {(props) => <AdminCompaniesScreen {...props} authState={authState} />}
-    </Tab.Screen>
-    <Tab.Screen name="Users">
-      {(props) => <AdminUsersScreen {...props} authState={authState} />}
-    </Tab.Screen>
-    <Tab.Screen name="Itineraries">
-      {(props) => <AdminItinerariesScreen {...props} authState={authState} />}
-    </Tab.Screen>
-  </Tab.Navigator>
-)
+const AdminBottomTabs = () => {
+  return (
+    <Tab.Navigator
+      screenOptions={({ route }) => ({
+        headerShown: false,
+        tabBarIcon: ({ focused, color, size }) => {
+          const icons = {
+            Dashboard: focused ? 'grid' : 'grid-outline',
+            Companies: focused ? 'business' : 'business-outline',
+            Users: focused ? 'people' : 'people-outline',
+            Itineraries: focused ? 'map' : 'map-outline',
+          }
+          return <Ionicons name={icons[route.name]} size={size} color={color} />
+        },
+        tabBarActiveTintColor: '#10b981',
+        tabBarInactiveTintColor: 'gray',
+      })}
+    >
+      <Tab.Screen name="Dashboard" component={AdminDashboardScreen} />
+      <Tab.Screen name="Companies" component={AdminCompaniesScreen} />
+      <Tab.Screen name="Users" component={AdminUsersScreen} />
+      <Tab.Screen name="Itineraries" component={AdminItinerariesScreen} />
+    </Tab.Navigator>
+  )
+}
 
-// MAIN APP NAVIGATOR
-const AppNavigator = ({ authState, setUser }) => {
-  const { user } = authState || {}
+const RootNavigator = () => {
+  const { user, loading } = useAuth()
+
+  if (loading) {
+    return null // Or a loading screen
+  }
 
   return (
-    <Stack.Navigator
-      screenOptions={{
-        headerShown: false,
-        cardStyle: { backgroundColor: '#f9fafb' },
-      }}
-    >
+    <Stack.Navigator screenOptions={{ headerShown: false }}>
       {!user ? (
-        <>
-          <Stack.Screen name="UserType">
-            {(props) => <UserTypeScreen {...props} setUser={setUser} />}
-          </Stack.Screen>
-          <Stack.Screen name="Login">
-            {(props) => <LoginScreen {...props} setUser={setUser} />}
-          </Stack.Screen>
-          <Stack.Screen name="Signup">
-            {(props) => <SignupScreen {...props} setUser={setUser} />}
-          </Stack.Screen>
-          <Stack.Screen name="VerifyOtp" component={VerifyOtpScreen} />
-          <Stack.Screen name="AdminLogin">
-            {(props) => <AdminLoginScreen {...props} setUser={setUser} />}
-          </Stack.Screen>
-          <Stack.Screen
-            name="ForgotPassword"
-            component={ForgotPasswordScreen}
-          />
-        </>
-      ) : user?.role === 'admin' ? (
-        <Stack.Screen name="AdminTabs">
-          {(props) => <AdminBottomTabs {...props} authState={authState} />}
-        </Stack.Screen>
-      ) : user?.role === 'company' ? (
-        <>
-          <Stack.Screen name="CompanyTabs">
-            {(props) => (
-              <CompanyBottomTabs
-                {...props}
-                authState={authState}
-                setUser={setUser}
-              />
-            )}
-          </Stack.Screen>
-
-          <Stack.Screen
-            name="CreateItinerary"
-            component={CreateItineraryScreen}
-          />
-          <Stack.Screen name="EditItinerary" component={EditItineraryScreen} />
-        </>
+        <Stack.Screen name="Auth" component={AuthNavigator} />
       ) : (
-        <>
-          <Stack.Screen name="UserTabs">
-            {(props) => <UserBottomTabs {...props} authState={authState} />}
-          </Stack.Screen>
-          <Stack.Screen
-            name="ItineraryDetail"
-            component={ItineraryDetailScreen}
-          />
-          <Stack.Screen name="Booking" component={BookingScreen} />
-          <Stack.Screen name="Payment" component={PaymentScreen} />
-          <Stack.Screen name="BudgetPlanner" component={BudgetPlannerScreen} />
-          <Stack.Screen name="Bookings" component={BookingDetailScreen} />
-        </>
+        <Stack.Screen name="Main" component={MainNavigator} />
       )}
     </Stack.Navigator>
   )
 }
 
-export default AppNavigator
+// Auth Navigator
+const AuthNavigator = () => (
+  <Stack.Navigator screenOptions={{ headerShown: false }}>
+    <Stack.Screen name="UserType" component={UserTypeScreen} />
+    <Stack.Screen name="Login" component={LoginScreen} />
+    <Stack.Screen name="Signup" component={SignupScreen} />
+    <Stack.Screen name="CompanyLogin" component={CompanyLoginScreen} />
+    <Stack.Screen name="CompanySignup" component={CompanySignupScreen} />
+    <Stack.Screen name="AdminLogin" component={AdminLoginScreen} />
+    <Stack.Screen name="VerifyOtp" component={VerifyOtpScreen} />
+    <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
+  </Stack.Navigator>
+)
+
+// Main Stack Navigator
+const MainNavigator = () => {
+  const { user } = useAuth()
+
+  return (
+    <Stack.Navigator
+      screenOptions={{
+        headerShown: false,
+        gestureEnabled: true,
+        gestureDirection: 'horizontal',
+      }}
+    >
+      <Stack.Screen
+        name="MainTabs"
+        component={
+          user?.role === 'company'
+            ? CompanyBottomTabs
+            : user?.role === 'admin'
+            ? AdminBottomTabs
+            : UserBottomTabs
+        }
+      />
+      <Stack.Screen name="ItineraryDetail" component={ItineraryDetailScreen} />
+      <Stack.Screen name="Booking" component={BookingScreen} />
+      <Stack.Screen name="Payment" component={PaymentScreen} />
+      <Stack.Screen name="BudgetPlanner" component={BudgetPlannerScreen} />
+      <Stack.Screen name="CreateItinerary" component={CreateItineraryScreen} />
+      <Stack.Screen name="EditItinerary" component={EditItineraryScreen} />
+      <Stack.Screen name="BookingDetail" component={BookingDetailScreen} />
+    </Stack.Navigator>
+  )
+}
+
+export default RootNavigator

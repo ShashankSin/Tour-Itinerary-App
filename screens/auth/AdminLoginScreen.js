@@ -10,13 +10,15 @@ import {
   ScrollView,
   KeyboardAvoidingView,
   Platform,
+  Alert,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { StatusBar } from 'expo-status-bar'
-import AsyncStorage from '@react-native-async-storage/async-storage'
 import axios from 'axios'
+import { useAuth } from '../../context/AuthContext'
 
-function AdminLoginScreen({ navigation, setUser }) {
+function AdminLoginScreen({ navigation }) {
+  const { login } = useAuth()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [isLoading, setIsLoading] = useState(false)
@@ -37,17 +39,23 @@ function AdminLoginScreen({ navigation, setUser }) {
         password,
       })
 
-      const { admin, token } = res.data
+      if (!res.data.success) {
+        throw new Error(res.data.message || 'Login failed')
+      }
 
-      // Save admin and token to AsyncStorage
-      await AsyncStorage.setItem('admin', JSON.stringify(admin))
-      await AsyncStorage.setItem('token', token)
+      const { token } = res.data
 
-      console.log('Admin logged in successfully')
-      setUser(admin) // Set the user state here to update the app state
+      // Use the AuthContext login function
+      await login(token, 'admin', email)
+      console.log('✅ Admin Login successful')
     } catch (err) {
-      console.error('Admin login error:', err)
-      setError('Invalid email or password')
+      console.error('❌ Admin login error:', err)
+      const errorMessage =
+        err.response?.data?.message ||
+        err.message ||
+        'Invalid email or password'
+      setError(errorMessage)
+      Alert.alert('Login Failed', errorMessage)
     } finally {
       setIsLoading(false)
     }

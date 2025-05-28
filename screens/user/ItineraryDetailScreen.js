@@ -56,6 +56,12 @@ const ItineraryDetailScreen = ({ navigation }) => {
 
   const getItineraryDetails = async () => {
     try {
+      if (!itineraryId || itineraryId === 'undefined') {
+        setError('Invalid itinerary ID')
+        setLoading(false)
+        return
+      }
+
       const response = await axios.get(
         `http://10.0.2.2:5000/api/trek/public/itinerary/${itineraryId}`
       )

@@ -1,4 +1,6 @@
-import React, { useEffect, useState } from 'react'
+'use client'
+
+import { useEffect, useState } from 'react'
 import {
   View,
   Text,
@@ -8,9 +10,21 @@ import {
   Alert,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
-import { Ionicons } from '@expo/vector-icons'
 import AsyncStorage from '@react-native-async-storage/async-storage'
-import jwtDecode from 'jwt-decode'
+import { jwtDecode } from 'jwt-decode'
+import { useAuth } from '../../context/AuthContext'
+import { CommonActions } from '@react-navigation/native'
+import {
+  Calendar,
+  MapPin,
+  Settings,
+  Edit3,
+  LogOut,
+  LogIn,
+  Shield,
+  Award,
+  Camera,
+} from 'lucide-react-native'
 
 function ProfileScreen({ navigation }) {
   const [user, setUser] = useState({
@@ -22,13 +36,13 @@ function ProfileScreen({ navigation }) {
     tripsCompleted: 0,
   })
 
+  const { logout } = useAuth()
+
   useEffect(() => {
     const fetchUserData = async () => {
       try {
         const token = await AsyncStorage.getItem('token')
         if (!token) {
-          Alert.alert('Error', 'User not authenticated')
-          navigation.replace('Login') // Redirect if no token
           return
         }
 
@@ -50,187 +64,200 @@ function ProfileScreen({ navigation }) {
         const userData = await response.json()
         console.log('📥 User Data:', userData)
 
-        setUser({
-          id: userData._id,
-          name: userData.name,
-          email: userData.email,
-          avatar:
-            userData.avatar || 'https://randomuser.me/api/portraits/men/32.jpg',
-          memberSince: new Date(userData.createdAt).toLocaleString('default', {
-            month: 'long',
-            year: 'numeric',
-          }),
-          tripsCompleted: userData.tripsCompleted || 0,
-        })
-      } catch (err) {
-        console.error('❌ Error fetching user data:', err)
-        Alert.alert('Error', 'Could not load user profile')
+        if (userData.success && userData.usersData) {
+          setUser((prevUser) => ({
+            ...prevUser,
+            id: decoded.id || '',
+            name: userData.usersData.name || '',
+            email: userData.usersData.email || '',
+            avatar: userData.usersData.avatar || prevUser.avatar,
+            memberSince: userData.usersData.createdAt
+              ? new Date(userData.usersData.createdAt).toLocaleString(
+                  'default',
+                  {
+                    month: 'long',
+                    year: 'numeric',
+                  }
+                )
+              : '',
+            tripsCompleted: userData.usersData.tripsCompleted || 0,
+          }))
+        }
+      } catch (error) {
+        console.error('Error fetching user data:', error)
+        Alert.alert('Error', 'Failed to load profile data')
       }
     }
 
     fetchUserData()
   }, [])
 
-  const menuItems = [
-    {
-      id: '1',
-      title: 'Personal Information',
-      icon: 'person-outline',
-      screen: 'PersonalInfo',
-    },
-    {
-      id: '2',
-      title: 'My Bookings',
-      icon: 'calendar-outline',
-      screen: 'Bookings',
-    },
-    {
-      id: '3',
-      title: 'Payment Methods',
-      icon: 'card-outline',
-      screen: 'Payment',
-    },
-    {
-      id: '4',
-      title: 'Notifications',
-      icon: 'notifications-outline',
-      screen: 'Notifications',
-    },
-    {
-      id: '5',
-      title: 'Help & Support',
-      icon: 'help-circle-outline',
-      screen: 'Support',
-    },
-    {
-      id: '6',
-      title: 'About Us',
-      icon: 'information-circle-outline',
-      screen: 'About',
-    },
-  ]
+  const handleLogout = async () => {
+    try {
+      await logout()
+      navigation.dispatch(
+        CommonActions.reset({
+          index: 0,
+          routes: [{ name: 'UserType' }],
+        })
+      )
+    } catch (error) {
+      console.error('Logout error:', error)
+    }
+  }
+
+  const MenuButton = ({
+    icon: Icon,
+    title,
+    subtitle,
+    onPress,
+    color = '#6B7280',
+    bgColor = 'bg-white',
+  }) => (
+    <TouchableOpacity
+      onPress={onPress}
+      className={`${bgColor} rounded-2xl p-4 mb-3 shadow-sm border border-gray-100`}
+    >
+      <View className="flex-row items-center">
+        <View className="w-12 h-12 bg-gray-100 rounded-xl items-center justify-center mr-4">
+          <Icon size={24} color={color} />
+        </View>
+        <View className="flex-1">
+          <Text className="text-lg font-semibold text-gray-800">{title}</Text>
+          {subtitle && (
+            <Text className="text-gray-500 text-sm mt-1">{subtitle}</Text>
+          )}
+        </View>
+        <View className="w-6 h-6 bg-gray-100 rounded-full items-center justify-center">
+          <Text className="text-gray-400 text-xs">›</Text>
+        </View>
+      </View>
+    </TouchableOpacity>
+  )
 
   return (
-    <SafeAreaView className="flex-1 bg-orange-50">
-      <View className="px-4 py-6 bg-orange-500">
-        <Text className="text-2xl font-bold text-white">Profile</Text>
-      </View>
-
-      <ScrollView className="flex-1">
-        {/* User Profile Card */}
-        <View className="m-4 bg-white rounded-xl shadow overflow-hidden">
-          <View className="bg-orange-100 p-4">
-            <View className="flex-row items-center">
+    <SafeAreaView className="flex-1 bg-gradient-to-br from-orange-50 to-red-50">
+      <ScrollView showsVerticalScrollIndicator={false}>
+        {/* Header */}
+        <View className="bg-gradient-to-r from-orange-600 to-red-600 px-6 pt-8 pb-12 rounded-b-3xl">
+          <View className="items-center">
+            <View className="relative">
               <Image
                 source={{ uri: user.avatar }}
-                className="w-20 h-20 rounded-full border-2 border-white"
+                className="w-24 h-24 rounded-full border-4 border-white shadow-lg"
               />
-              <View className="ml-4">
-                <Text className="text-xl font-bold text-gray-800">
-                  {user.name}
-                </Text>
-                <Text className="text-gray-600">{user.email}</Text>
-              </View>
+              <TouchableOpacity className="absolute bottom-0 right-0 w-8 h-8 bg-white rounded-full items-center justify-center shadow-md">
+                <Camera size={16} color="#6B7280" />
+              </TouchableOpacity>
             </View>
-          </View>
+            <Text className="text-2xl font-bold text-white mt-4">
+              {user.name || 'Guest User'}
+            </Text>
+            <Text className="text-white opacity-90 mt-1">
+              {user.email || 'guest@example.com'}
+            </Text>
 
-          <View className="p-4 flex-row justify-between">
-            <View className="items-center">
-              <Text className="text-gray-500">Member Since</Text>
-              <Text className="font-semibold text-gray-800">
-                {user.memberSince}
+            {/* Achievement Badge */}
+            <View className="bg-white/20 rounded-full px-4 py-2 mt-3">
+              <Text className="text-white text-sm font-medium">
+                Adventure Explorer
               </Text>
             </View>
-            <View className="items-center">
-              <Text className="text-gray-500">Trips Completed</Text>
-              <Text className="font-semibold text-gray-800">
+          </View>
+        </View>
+
+        <View className="px-6 -mt-6">
+          {/* Stats Cards */}
+          <View className="flex-row mb-6">
+            <View className="flex-1 bg-white rounded-2xl p-4 mr-2 shadow-sm">
+              <View className="flex-row items-center mb-2">
+                <MapPin size={20} color="#ea580c" />
+                <Text className="text-gray-600 text-sm ml-2">Trips</Text>
+              </View>
+              <Text className="text-2xl font-bold text-gray-800">
                 {user.tripsCompleted}
               </Text>
+              <Text className="text-gray-500 text-xs">Completed</Text>
+            </View>
+
+            <View className="flex-1 bg-white rounded-2xl p-4 ml-2 shadow-sm">
+              <View className="flex-row items-center mb-2">
+                <Calendar size={20} color="#f97316" />
+                <Text className="text-gray-600 text-sm ml-2">Member</Text>
+              </View>
+              <Text className="text-lg font-bold text-gray-800">
+                {user.memberSince || 'New'}
+              </Text>
+              <Text className="text-gray-500 text-xs">Since</Text>
             </View>
           </View>
 
-          <TouchableOpacity className="bg-orange-500 mx-4 mb-4 py-2 rounded-lg items-center">
-            <Text className="text-white font-medium">Edit Profile</Text>
-          </TouchableOpacity>
+          {/* Account Section */}
+          <View className="mb-6">
+            <Text className="text-xl font-bold text-gray-800 mb-4">
+              Account
+            </Text>
+
+            <MenuButton
+              icon={Edit3}
+              title="Edit Profile"
+              subtitle="Update your personal information"
+              onPress={() => navigation.navigate('EditProfile')}
+              color="#f97316"
+            />
+
+            <MenuButton
+              icon={Settings}
+              title="Settings"
+              subtitle="Preferences and privacy"
+              onPress={() => navigation.navigate('Settings')}
+              color="#6b7280"
+            />
+
+            <MenuButton
+              icon={Shield}
+              title="Privacy & Security"
+              subtitle="Manage your account security"
+              onPress={() => navigation.navigate('Privacy')}
+              color="#ea580c"
+            />
+
+            <MenuButton
+              icon={Award}
+              title="Achievements"
+              subtitle="View your trekking milestones"
+              onPress={() => navigation.navigate('Achievements')}
+              color="#f59e0b"
+            />
+          </View>
+
+          {/* Action Section */}
+          <View className="mb-8">
+            <Text className="text-xl font-bold text-gray-800 mb-4">
+              Actions
+            </Text>
+
+            {user.id ? (
+              <MenuButton
+                icon={LogOut}
+                title="Sign Out"
+                subtitle="Log out of your account"
+                onPress={handleLogout}
+                color="#ef4444"
+                bgColor="bg-red-50"
+              />
+            ) : (
+              <MenuButton
+                icon={LogIn}
+                title="Sign In"
+                subtitle="Access your account"
+                onPress={() => navigation.navigate('Login')}
+                color="#ea580c"
+                bgColor="bg-orange-50"
+              />
+            )}
+          </View>
         </View>
-
-        {/* Menu Items */}
-        <View className="mx-4 bg-white rounded-xl shadow overflow-hidden mb-6">
-          {menuItems.map((item, index) => (
-            <TouchableOpacity
-              key={item.id}
-              className={`flex-row items-center p-4 ${
-                index < menuItems.length - 1 ? 'border-b border-gray-100' : ''
-              }`}
-              onPress={() => {
-                if (item.screen === 'Bookings') {
-                  console.log(
-                    '📦 Navigating to Bookings with user ID:',
-                    user.id
-                  )
-                  navigation.navigate('Bookings', { userId: user.id })
-                } else {
-                  navigation.navigate(item.screen)
-                }
-              }}
-            >
-              <View className="w-8 h-8 bg-orange-100 rounded-full items-center justify-center">
-                <Ionicons name={item.icon} size={18} color="#f97316" />
-              </View>
-              <Text className="ml-3 flex-1 text-gray-800">{item.title}</Text>
-              <Ionicons name="chevron-forward" size={20} color="#9ca3af" />
-            </TouchableOpacity>
-          ))}
-        </View>
-
-        {/* Logout Button */}
-        <TouchableOpacity
-          style={{
-            marginHorizontal: 16,
-            marginBottom: 32,
-            padding: 16,
-            backgroundColor: '#fff',
-            borderRadius: 12,
-            shadowColor: '#000',
-            shadowOpacity: 0.1,
-            shadowRadius: 4,
-            flexDirection: 'row',
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}
-          onPress={async () => {
-            try {
-              const token = await AsyncStorage.getItem('token')
-
-              // Call backend logout API
-              await fetch('http://10.0.2.2:5000/api/auth/logoutUser', {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                  Authorization: `Bearer ${token}`,
-                },
-              })
-
-              // Remove token
-              await AsyncStorage.removeItem('token')
-
-              // Set user to null and navigate to Login screen
-              setUser(null)
-              navigation.replace('Login')
-            } catch (error) {
-              console.error('Logout error:', error)
-              Alert.alert(
-                'Logout Failed',
-                'Something went wrong. Please try again.'
-              )
-            }
-          }}
-        >
-          <Ionicons name="log-out-outline" size={20} color="#ef4444" />
-          <Text style={{ marginLeft: 8, color: '#ef4444', fontWeight: '500' }}>
-            Logout
-          </Text>
-        </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>
   )

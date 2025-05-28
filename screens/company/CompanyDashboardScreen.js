@@ -9,95 +9,83 @@ import {
   ActivityIndicator,
   FlatList,
   Dimensions,
+  Alert,
 } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import { LineChart } from 'react-native-chart-kit'
+import AsyncStorage from '@react-native-async-storage/async-storage'
+import axios from 'axios'
+import { jwtDecode } from 'jwt-decode'
 
 function CompanyDashboardScreen({ navigation }) {
-  const [loading, setLoading] = useState(false)
-  const [stats, setStats] = useState({
-    totalTreks: 0,
-    activeBookings: 0,
-    revenue: 0,
-    pendingApprovals: 0,
+  const [loading, setLoading] = useState(true)
+  const [dashboardData, setDashboardData] = useState({
+    stats: {
+      totalTreks: 0,
+      totalBookings: 0,
+      totalRevenue: 0,
+      pendingBookings: 0,
+    },
+    recentBookings: [],
+    popularTreks: [],
+    monthlyRevenue: [],
+    companyProfile: null,
   })
 
-  const [recentBookings, setRecentBookings] = useState([])
-  const [popularTreks, setPopularTreks] = useState([])
+  const fetchDashboardData = async () => {
+    try {
+      setLoading(true)
+      const token = await AsyncStorage.getItem('token')
+
+      if (!token) {
+        throw new Error('Authentication token not found')
+      }
+
+      // Validate token and role
+      const decoded = jwtDecode(token)
+      if (!decoded || !decoded.id || decoded.role !== 'company') {
+        throw new Error('Invalid authentication token')
+      }
+
+      // Set default headers for all requests
+      axios.defaults.headers.common['Authorization'] = `Bearer ${token}`
+      axios.defaults.headers.common['Content-Type'] = 'application/json'
+
+      const response = await axios.get(
+        'http://10.0.2.2:5000/api/dashboard/company'
+      )
+
+      if (!response.data?.success) {
+        throw new Error(
+          response.data?.message || 'Failed to fetch dashboard data'
+        )
+      }
+
+      const { company, stats, recentBookings, popularTreks, monthlyRevenue } =
+        response.data.data
+
+      setDashboardData({
+        stats,
+        recentBookings,
+        popularTreks,
+        monthlyRevenue,
+        companyProfile: company,
+      })
+    } catch (error) {
+      console.error('Error fetching dashboard data:', error)
+      const errorMessage =
+        error.response?.data?.message ||
+        error.message ||
+        'Failed to fetch dashboard data'
+      Alert.alert('Error', errorMessage)
+    } finally {
+      setLoading(false)
+    }
+  }
 
   useEffect(() => {
     fetchDashboardData()
   }, [])
-
-  const fetchDashboardData = async () => {
-    setLoading(true)
-    try {
-      // Mock data - replace with actual API calls
-      setTimeout(() => {
-        setStats({
-          totalTreks: 12,
-          activeBookings: 8,
-          revenue: 4250,
-          pendingApprovals: 3,
-        })
-
-        setRecentBookings([
-          {
-            id: '1',
-            customerName: 'John Doe',
-            trekName: 'Everest Base Camp',
-            date: '2023-06-15',
-            amount: 1200,
-            status: 'confirmed',
-          },
-          {
-            id: '2',
-            customerName: 'Jane Smith',
-            trekName: 'Annapurna Circuit',
-            date: '2023-06-18',
-            amount: 950,
-            status: 'pending',
-          },
-          {
-            id: '3',
-            customerName: 'Mike Johnson',
-            trekName: 'Langtang Valley',
-            date: '2023-06-20',
-            amount: 850,
-            status: 'confirmed',
-          },
-        ])
-
-        setPopularTreks([
-          {
-            id: '1',
-            name: 'Everest Base Camp',
-            bookings: 24,
-            image:
-              'https://images.unsplash.com/photo-1533130061792-64b345e4a833',
-          },
-          {
-            id: '2',
-            name: 'Annapurna Circuit',
-            bookings: 18,
-            image: 'https://images.unsplash.com/photo-1544735716-392fe2489ffa',
-          },
-          {
-            id: '3',
-            name: 'Langtang Valley',
-            bookings: 12,
-            image:
-              'https://images.unsplash.com/photo-1501554728187-ce583db33af7',
-          },
-        ])
-
-        setLoading(false)
-      }, 1000)
-    } catch (error) {
-      console.error('Error fetching dashboard data:', error)
-      setLoading(false)
-    }
-  }
 
   const renderStatCard = (title, value, icon, color, onPress) => (
     <TouchableOpacity
@@ -182,31 +170,31 @@ function CompanyDashboardScreen({ navigation }) {
         <View style={styles.statsContainer}>
           {renderStatCard(
             'Total Treks',
-            stats.totalTreks,
+            dashboardData.stats.totalTreks,
             'trail-sign',
             '#4CAF50',
-            () => navigation.navigate('CompanyItineraries')
+            () => navigation.navigate('Itineraries')
           )}
           {renderStatCard(
             'Active Bookings',
-            stats.activeBookings,
+            dashboardData.stats.totalBookings,
             'calendar',
             '#2196F3',
-            () => navigation.navigate('CompanyBookings')
+            () => navigation.navigate('Bookings')
           )}
           {renderStatCard(
             'Revenue',
-            `$${stats.revenue}`,
+            `$${dashboardData.stats.totalRevenue}`,
             'cash',
             '#FF9800',
             null
           )}
           {renderStatCard(
             'Pending Approvals',
-            stats.pendingApprovals,
+            dashboardData.stats.pendingBookings,
             'hourglass',
             '#F44336',
-            null
+            () => navigation.navigate('Bookings', { filter: 'pending' })
           )}
         </View>
 
@@ -254,9 +242,9 @@ function CompanyDashboardScreen({ navigation }) {
             </TouchableOpacity>
           </View>
 
-          {recentBookings.length > 0 ? (
+          {dashboardData.recentBookings.length > 0 ? (
             <FlatList
-              data={recentBookings}
+              data={dashboardData.recentBookings}
               renderItem={renderBookingItem}
               keyExtractor={(item) => item.id}
               scrollEnabled={false}
@@ -279,9 +267,9 @@ function CompanyDashboardScreen({ navigation }) {
             </TouchableOpacity>
           </View>
 
-          {popularTreks.length > 0 ? (
+          {dashboardData.popularTreks.length > 0 ? (
             <FlatList
-              data={popularTreks}
+              data={dashboardData.popularTreks}
               renderItem={renderPopularTrek}
               keyExtractor={(item) => item.id}
               horizontal

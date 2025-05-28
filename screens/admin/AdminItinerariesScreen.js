@@ -55,11 +55,12 @@ const AdminItinerariesScreen = () => {
   // Update isApproved field
   const updateApproval = async (itineraryId, approve) => {
     try {
-      console.log('Approving itinerary with ID:', itineraryId)
+      console.log(
+        `Setting itinerary to ${approve ? 'approved' : 'pending'} with ID:`,
+        itineraryId
+      )
 
-      const token = await AsyncStorage.getItem('token') // get stored JWT token
-      console.log('Token:', token)
-
+      const token = await AsyncStorage.getItem('token')
       if (!token) {
         Alert.alert(
           'Error',
@@ -68,21 +69,12 @@ const AdminItinerariesScreen = () => {
         return
       }
 
-      // Decode token and log admin info
+      // Decode token and validate admin role
       const decoded = jwtDecode(token)
-      console.log('Decoded Token:', decoded)
-
-      // Optional: Check if the role is 'admin'
       if (decoded.role !== 'admin') {
         Alert.alert('Unauthorized', 'Only admin can approve itineraries')
         return
       }
-
-      const requestData = {
-        isApproved: approve,
-      }
-
-      console.log('Sending PUT request with data:', requestData)
 
       // Optimistically update the UI
       setItineraries((prev) =>
@@ -91,36 +83,42 @@ const AdminItinerariesScreen = () => {
         )
       )
 
-      // Send the PUT request with token in header
+      // Send the request to the correct endpoint based on approve value
+      const endpoint = approve ? 'approve' : 'reject'
       const response = await axios.put(
-        `http://10.0.2.2:5000/api/trek/approve/${itineraryId}`,
-        requestData,
+        `http://10.0.2.2:5000/api/trek/${endpoint}/${itineraryId}`,
+        {},
         {
           headers: {
             Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
           },
         }
       )
 
-      if (response.status === 200) {
-        Alert.alert(
-          'Success',
-          `Itinerary ${approve ? 'approved' : 'set to pending'} successfully`
-        )
-      } else {
+      if (!response.data.success) {
         throw new Error(
           response.data.message || 'Failed to update approval status'
         )
       }
+
+      Alert.alert(
+        'Success',
+        `Itinerary ${approve ? 'approved' : 'set to pending'} successfully`
+      )
     } catch (err) {
       console.error('Error updating approval status:', err)
 
-      Alert.alert('Error', 'Failed to update approval status')
-
+      // Revert the optimistic update
       setItineraries((prev) =>
         prev.map((item) =>
           item._id === itineraryId ? { ...item, isApproved: !approve } : item
         )
+      )
+
+      Alert.alert(
+        'Error',
+        err.response?.data?.message || 'Failed to update approval status'
       )
     }
   }

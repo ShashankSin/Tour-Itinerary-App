@@ -35,29 +35,45 @@ function CompanyBookingsScreen({ navigation }) {
       const token = await AsyncStorage.getItem('token')
 
       if (!token) {
-        Alert.alert('Error', 'User not authenticated')
-        setLoading(false)
-        return
+        throw new Error('Authentication token not found')
       }
 
+      // Validate token and role
       const decoded = jwtDecode(token)
-      console.log('✅ Decoded token:', decoded)
+      if (!decoded || !decoded.id || decoded.role !== 'company') {
+        throw new Error('Invalid authentication token')
+      }
+
+      // Set default headers for all requests
+      axios.defaults.headers.common['Authorization'] = `Bearer ${token}`
+      axios.defaults.headers.common['Content-Type'] = 'application/json'
 
       const response = await axios.get(
-        'http://10.0.2.2:5000/api/booking/company',
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
+        'http://10.0.2.2:5000/api/booking/company'
       )
 
-      const bookings = response.data.bookings // Ensure your backend returns `{ bookings: [...] }`
-      setBookings(bookings)
-      setFilteredBookings(bookings)
+      if (!response.data?.success) {
+        throw new Error(response.data?.message || 'Failed to fetch bookings')
+      }
+
+      const bookings = response.data.bookings || []
+
+      // Sort bookings by date
+      const sortedBookings = bookings.sort(
+        (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
+      )
+
+      setBookings(sortedBookings)
+      setFilteredBookings(sortedBookings)
     } catch (error) {
       console.error('❌ Error fetching bookings:', error)
-      Alert.alert('Error', 'Failed to fetch bookings')
+      const errorMessage =
+        error.response?.data?.message ||
+        error.message ||
+        'Failed to fetch bookings'
+      Alert.alert('Error', errorMessage)
+      setBookings([])
+      setFilteredBookings([])
     } finally {
       setLoading(false)
     }
@@ -85,33 +101,54 @@ function CompanyBookingsScreen({ navigation }) {
     setFilteredBookings(filtered)
   }
 
-  const updateBookingStatus = (bookingId, newStatus) => {
-    Alert.alert(
-      'Update Status',
-      `Are you sure you want to mark this booking as ${newStatus}?`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Update',
-          onPress: () => {
-            setLoading(true)
+  const updateBookingStatus = async (bookingId, newStatus) => {
+    try {
+      setLoading(true)
+      const token = await AsyncStorage.getItem('token')
 
-            // Mock API call - replace with actual API call
-            setTimeout(() => {
-              const updatedBookings = bookings.map((booking) =>
-                booking.id === bookingId
-                  ? { ...booking, status: newStatus }
-                  : booking
-              )
+      if (!token) {
+        throw new Error('Authentication token not found')
+      }
 
-              setBookings(updatedBookings)
-              setLoading(false)
-              Alert.alert('Success', 'Booking status updated successfully')
-            }, 500)
-          },
-        },
-      ]
-    )
+      // Validate token and role
+      const decoded = jwtDecode(token)
+      if (!decoded || !decoded.id || decoded.role !== 'company') {
+        throw new Error('Invalid authentication token')
+      }
+
+      // Set default headers
+      axios.defaults.headers.common['Authorization'] = `Bearer ${token}`
+      axios.defaults.headers.common['Content-Type'] = 'application/json'
+
+      const response = await axios.put(
+        `http://10.0.2.2:5000/api/booking/status/${bookingId}`,
+        { status: newStatus }
+      )
+
+      if (!response.data?.success) {
+        throw new Error(
+          response.data?.message || 'Failed to update booking status'
+        )
+      }
+
+      const updatedBooking = response.data.booking
+      const updatedBookings = bookings.map((booking) =>
+        booking._id === bookingId ? updatedBooking : booking
+      )
+
+      setBookings(updatedBookings)
+      setFilteredBookings(updatedBookings)
+      Alert.alert('Success', `Booking marked as ${newStatus}`)
+    } catch (error) {
+      console.error('Error updating booking:', error)
+      const errorMessage =
+        error.response?.data?.message ||
+        error.message ||
+        'Failed to update booking status'
+      Alert.alert('Error', errorMessage)
+    } finally {
+      setLoading(false)
+    }
   }
 
   const getStatusColor = (status) => {
@@ -146,10 +183,11 @@ function CompanyBookingsScreen({ navigation }) {
 
   const renderBookingItem = ({ item }) => (
     <View style={styles.bookingCard}>
+      {/* Header */}
       <View style={styles.bookingHeader}>
         <View>
-          <Text style={styles.customerName}>{item.customerName}</Text>
-          <Text style={styles.bookingId}>Booking #{item.id}</Text>
+          <Text style={styles.customerName}>{item.userId?.name}</Text>
+          <Text style={styles.bookingId}>Booking #{item._id?.slice(-6)}</Text>
         </View>
         <View
           style={[
@@ -165,16 +203,33 @@ function CompanyBookingsScreen({ navigation }) {
         </View>
       </View>
 
+      {/* Trek Details */}
       <View style={styles.bookingDetails}>
         <View style={styles.detailRow}>
           <Ionicons name="trail-sign-outline" size={16} color="#666" />
-          <Text style={styles.detailText}>{item.trekName}</Text>
+          <Text style={styles.detailText}>
+            {item.trekId?.title} ({item.trekId?.location})
+          </Text>
         </View>
 
         <View style={styles.detailRow}>
           <Ionicons name="calendar-outline" size={16} color="#666" />
           <Text style={styles.detailText}>
             Trek Date: {new Date(item.trekDate).toLocaleDateString()}
+          </Text>
+        </View>
+
+        <View style={styles.detailRow}>
+          <Ionicons name="calendar-number-outline" size={16} color="#666" />
+          <Text style={styles.detailText}>
+            Booking Date: {new Date(item.createdAt).toLocaleDateString()}
+          </Text>
+        </View>
+
+        <View style={styles.detailRow}>
+          <Ionicons name="time-outline" size={16} color="#666" />
+          <Text style={styles.detailText}>
+            Duration: {item.trekId?.duration}
           </Text>
         </View>
 
@@ -188,7 +243,7 @@ function CompanyBookingsScreen({ navigation }) {
         <View style={styles.detailRow}>
           <Ionicons name="cash-outline" size={16} color="#666" />
           <Text style={styles.detailText}>
-            ${item.amount} -{' '}
+            Total: ${item.totalPrice?.toFixed(2)} –{' '}
             <Text style={{ color: getPaymentStatusColor(item.paymentStatus) }}>
               {item.paymentStatus.charAt(0).toUpperCase() +
                 item.paymentStatus.slice(1)}
@@ -197,24 +252,31 @@ function CompanyBookingsScreen({ navigation }) {
         </View>
       </View>
 
+      {/* Contact Info */}
       <View style={styles.contactInfo}>
         <TouchableOpacity style={styles.contactButton}>
           <Ionicons name="mail-outline" size={16} color="#FF5722" />
-          <Text style={styles.contactButtonText}>{item.customerEmail}</Text>
+          <Text style={styles.contactButtonText}>{item.userId?.email}</Text>
         </TouchableOpacity>
 
         <TouchableOpacity style={styles.contactButton}>
           <Ionicons name="call-outline" size={16} color="#FF5722" />
-          <Text style={styles.contactButtonText}>{item.customerPhone}</Text>
+          <Text style={styles.contactButtonText}>
+            {item.userId?.phone || 'N/A'}
+          </Text>
         </TouchableOpacity>
       </View>
 
+      {/* Actions */}
       <View style={styles.bookingActions}>
         {item.status === 'pending' && (
           <>
             <TouchableOpacity
               style={[styles.actionButton, styles.confirmButton]}
-              onPress={() => updateBookingStatus(item.id, 'confirmed')}
+              onPress={() => {
+                console.log('Booking ID:', item._id),
+                  updateBookingStatus(item._id, 'confirmed')
+              }}
             >
               <Ionicons
                 name="checkmark-circle-outline"
@@ -226,7 +288,7 @@ function CompanyBookingsScreen({ navigation }) {
 
             <TouchableOpacity
               style={[styles.actionButton, styles.cancelButton]}
-              onPress={() => updateBookingStatus(item.id, 'cancelled')}
+              onPress={() => updateBookingStatus(item._id, 'cancelled')}
             >
               <Ionicons name="close-circle-outline" size={16} color="#fff" />
               <Text style={styles.actionButtonText}>Cancel</Text>
@@ -237,7 +299,7 @@ function CompanyBookingsScreen({ navigation }) {
         {item.status === 'confirmed' && (
           <TouchableOpacity
             style={[styles.actionButton, styles.completeButton]}
-            onPress={() => updateBookingStatus(item.id, 'completed')}
+            onPress={() => updateBookingStatus(item._id, 'completed')}
           >
             <Ionicons name="checkmark-done-outline" size={16} color="#fff" />
             <Text style={styles.actionButtonText}>Mark Completed</Text>

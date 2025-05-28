@@ -17,8 +17,11 @@ import { Ionicons } from '@expo/vector-icons'
 import * as ImagePicker from 'expo-image-picker'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { jwtDecode } from 'jwt-decode'
+import { useAuth } from '../../context/AuthContext'
+import { CommonActions } from '@react-navigation/native'
 
-function CompanyProfileScreen({ navigation, setUser }) {
+function CompanyProfileScreen({ navigation }) {
+  const { logout } = useAuth()
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [editMode, setEditMode] = useState(false)
@@ -126,19 +129,24 @@ function CompanyProfileScreen({ navigation, setUser }) {
   }
 
   const pickImage = async (type) => {
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      aspect: type === 'logo' ? [1, 1] : [16, 9],
-      quality: 0.8,
-    })
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: [ImagePicker.MediaType.Images],
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 1,
+      })
 
-    if (!result.canceled) {
-      if (type === 'logo') {
-        setProfile({ ...profile, logo: result.assets[0].uri })
-      } else {
-        setProfile({ ...profile, coverImage: result.assets[0].uri })
+      if (!result.canceled) {
+        if (type === 'logo') {
+          setProfile({ ...profile, logo: result.assets[0].uri })
+        } else {
+          setProfile({ ...profile, coverImage: result.assets[0].uri })
+        }
       }
+    } catch (error) {
+      console.error('Error picking image:', error)
+      Alert.alert('Error', 'Failed to pick image')
     }
   }
 
@@ -150,6 +158,21 @@ function CompanyProfileScreen({ navigation, setUser }) {
         [key]: !profile.notifications[key],
       },
     })
+  }
+
+  const handleLogout = async () => {
+    try {
+      await logout()
+      navigation.dispatch(
+        CommonActions.reset({
+          index: 0,
+          routes: [{ name: 'Auth', params: { screen: 'UserType' } }],
+        })
+      )
+    } catch (error) {
+      console.error('Logout error:', error)
+      Alert.alert('Error', 'Failed to logout. Please try again.')
+    }
   }
 
   if (loading) {
@@ -564,28 +587,7 @@ function CompanyProfileScreen({ navigation, setUser }) {
           {!editMode && (
             <TouchableOpacity
               style={styles.logoutButton}
-              onPress={async () => {
-                try {
-                  const token = await AsyncStorage.getItem('token')
-
-                  // Call backend logout API
-                  await fetch('http://10.0.2.2:5000/api/auth/logoutUser', {
-                    method: 'POST',
-                    headers: {
-                      'Content-Type': 'application/json',
-                      Authorization: `Bearer ${token}`,
-                    },
-                  })
-
-                  // Remove token
-                  await AsyncStorage.removeItem('token')
-
-                  // Set user to null so AppNavigator renders Login screen
-                  setUser(null)
-                } catch (error) {
-                  console.error('Logout error:', error)
-                }
-              }}
+              onPress={handleLogout}
             >
               <Ionicons name="log-out-outline" size={18} color="#F44336" />
               <Text style={styles.logoutButtonText}>Logout</Text>

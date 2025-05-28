@@ -4,11 +4,12 @@ import { useState, useEffect } from 'react'
 import {
   View,
   Text,
-  ScrollView,
   TouchableOpacity,
   TextInput,
   Image,
   ActivityIndicator,
+  FlatList,
+  Alert,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
@@ -18,6 +19,9 @@ import { jwtDecode } from 'jwt-decode'
 
 function ExploreScreen({ navigation, route }) {
   const [searchQuery, setSearchQuery] = useState('')
+  const [searchResults, setSearchResults] = useState([])
+  const [isSearching, setIsSearching] = useState(false)
+  const [showSearchResults, setShowSearchResults] = useState(false)
 
   // Recommendation states
   const [recommendations, setRecommendations] = useState([])
@@ -32,6 +36,39 @@ function ExploreScreen({ navigation, route }) {
   useEffect(() => {
     fetchRecommendations()
   }, [userId])
+
+  const handleSearch = async () => {
+    if (!searchQuery.trim()) {
+      setShowSearchResults(false)
+      return
+    }
+
+    try {
+      setIsSearching(true)
+      const token = await AsyncStorage.getItem('token')
+
+      const response = await axios.get(
+        `http://10.0.2.2:5000/api/trek/search?query=${encodeURIComponent(
+          searchQuery
+        )}`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      )
+
+      if (response.data.success) {
+        setSearchResults(response.data.data)
+        setShowSearchResults(true)
+      }
+    } catch (error) {
+      console.error('Search error:', error)
+      Alert.alert('Error', 'Failed to search treks')
+    } finally {
+      setIsSearching(false)
+    }
+  }
 
   const fetchRecommendations = async () => {
     try {
@@ -138,159 +175,109 @@ function ExploreScreen({ navigation, route }) {
     </TouchableOpacity>
   )
 
-  const renderRecommendations = () => {
-    if (loading) {
-      return (
-        <View className="flex-1 justify-center items-center py-8">
-          <ActivityIndicator size="large" color="#f97316" />
-          <Text className="mt-2 text-gray-600">Loading recommendations...</Text>
-        </View>
-      )
-    }
-
-    if (error) {
-      return (
-        <View className="flex-1 justify-center items-center py-8">
-          <Text className="text-red-500">{error}</Text>
+  const SearchBar = () => (
+    <View className="px-4 py-2">
+      <View className="flex-row items-center bg-gray-100 rounded-full px-4 py-2">
+        <Ionicons name="search" size={20} color="#9ca3af" />
+        <TextInput
+          className="flex-1 ml-2 text-gray-800"
+          placeholder="Search destinations, treks..."
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+          onSubmitEditing={handleSearch}
+          returnKeyType="search"
+        />
+        {searchQuery.length > 0 && (
           <TouchableOpacity
-            onPress={fetchRecommendations}
-            className="mt-2 bg-orange-500 px-4 py-2 rounded"
+            onPress={() => {
+              setSearchQuery('')
+              setShowSearchResults(false)
+            }}
           >
-            <Text className="text-white">Retry</Text>
+            <Ionicons name="close-circle" size={20} color="#9ca3af" />
           </TouchableOpacity>
-        </View>
-      )
-    }
+        )}
+      </View>
+    </View>
+  )
 
+  const renderSection = ({ title, data, renderItem }) => (
+    <View className="mb-6">
+      <Text className="text-lg font-bold text-gray-800 px-4 mb-2">{title}</Text>
+      <FlatList
+        data={data}
+        renderItem={renderItem}
+        keyExtractor={(item) => item._id}
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={{ paddingHorizontal: 16 }}
+      />
+    </View>
+  )
+
+  const sections = [
+    {
+      title: 'Recommended Treks',
+      data: recommendations,
+      renderItem: ({ item }) => <TrekCard trek={item} showSimilarity />,
+    },
+    {
+      title: 'Popular Destinations',
+      data: popularDestinations,
+      renderItem: ({ item }) => <DestinationCard destination={item} />,
+    },
+  ].filter((section) => section.data && section.data.length > 0)
+
+  const renderContent = () => (
+    <>
+      <SearchBar />
+      {showSearchResults ? (
+        <FlatList
+          data={searchResults}
+          renderItem={({ item }) => <TrekCard trek={item} />}
+          keyExtractor={(item) => item._id}
+          contentContainerStyle={{ padding: 16 }}
+          ListEmptyComponent={
+            <Text className="text-center text-gray-500">No results found</Text>
+          }
+        />
+      ) : (
+        sections.map((section) => (
+          <View key={section.title}>
+            {renderSection({
+              title: section.title,
+              data: section.data,
+              renderItem: section.renderItem,
+            })}
+          </View>
+        ))
+      )}
+    </>
+  )
+
+  if (loading) {
     return (
-      <View>
-        {/* Personalized Recommendations */}
-        {userId && recommendations.length > 0 && (
-          <View className="mt-4">
-            <View className="px-4 flex-row justify-between items-center mb-2">
-              <Text className="text-lg font-bold text-gray-800">
-                Recommended for You
-              </Text>
-              <TouchableOpacity>
-                <Text className="text-orange-500">See All</Text>
-              </TouchableOpacity>
-            </View>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-              {recommendations.map((trek) => (
-                <View key={trek._id} style={{ width: 300 }}>
-                  <TrekCard trek={trek} showSimilarity={true} />
-                </View>
-              ))}
-            </ScrollView>
-          </View>
-        )}
-
-        {/* Popular Destinations */}
-        {popularDestinations.length > 0 && (
-          <View className="mt-4">
-            <View className="px-4 flex-row justify-between items-center mb-2">
-              <Text className="text-lg font-bold text-gray-800">
-                Popular Destinations
-              </Text>
-              <TouchableOpacity>
-                <Text className="text-orange-500">See All</Text>
-              </TouchableOpacity>
-            </View>
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              className="px-4"
-            >
-              {popularDestinations.map((destination, index) => (
-                <DestinationCard key={index} destination={destination} />
-              ))}
-            </ScrollView>
-          </View>
-        )}
-
-        {/* Trending Experiences */}
-        {trending.length > 0 && (
-          <View className="mt-4 mb-6">
-            <Text className="px-4 text-lg font-bold text-gray-800 mb-2">
-              Trending Experiences
-            </Text>
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              className="px-4"
-            >
-              {trending.map((trek) => (
-                <TouchableOpacity
-                  key={trek._id}
-                  className="mr-4 bg-white rounded-xl overflow-hidden shadow"
-                  style={{ width: 200 }}
-                  onPress={() =>
-                    navigation.navigate('TrekDetail', { id: trek._id })
-                  }
-                >
-                  <Image
-                    source={{
-                      uri:
-                        trek.images?.[0] ||
-                        `https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=200&h=150&fit=crop`,
-                    }}
-                    className="w-full h-24"
-                    resizeMode="cover"
-                  />
-                  <View className="p-3">
-                    <Text className="font-bold text-gray-800">
-                      {trek.title}
-                    </Text>
-                    <Text className="text-sm text-gray-500">
-                      From ₹{trek.price}
-                    </Text>
-                    <View className="flex-row items-center mt-1">
-                      <Ionicons name="trending-up" size={12} color="#f97316" />
-                      <Text className="text-xs text-orange-600 ml-1">
-                        Trending
-                      </Text>
-                    </View>
-                  </View>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-          </View>
-        )}
+      <View className="flex-1 justify-center items-center">
+        <ActivityIndicator size="large" color="#f97316" />
       </View>
     )
   }
 
-  const handleSearch = () => {
-    if (searchQuery.trim()) {
-      navigation.navigate('SearchResults', { query: searchQuery })
-    }
+  if (error) {
+    return (
+      <View className="flex-1 justify-center items-center">
+        <Text className="text-red-500">{error}</Text>
+      </View>
+    )
   }
 
   return (
-    <SafeAreaView className="flex-1 bg-orange-50">
-      <View className="px-4 pt-6 pb-4 bg-orange-500">
-        <Text className="text-2xl font-bold text-white mb-4">Explore</Text>
-
-        <TouchableOpacity
-          className="flex-row items-center bg-white rounded-full px-4 py-2"
-          onPress={handleSearch}
-        >
-          <Ionicons name="search" size={20} color="#9ca3af" />
-          <TextInput
-            className="flex-1 ml-2 text-gray-800"
-            placeholder="Search destinations, treks..."
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-            placeholderTextColor="#9ca3af"
-            onSubmitEditing={handleSearch}
-          />
-        </TouchableOpacity>
-      </View>
-
-      <ScrollView className="flex-1">
-        {/* AI-Powered Recommendations */}
-        {renderRecommendations()}
-      </ScrollView>
+    <SafeAreaView className="flex-1 bg-white">
+      <FlatList
+        data={[{ key: 'content' }]}
+        renderItem={renderContent}
+        keyExtractor={(item) => item.key}
+      />
     </SafeAreaView>
   )
 }

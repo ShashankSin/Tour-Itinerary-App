@@ -1,473 +1,215 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import {
   View,
   Text,
-  FlatList,
-  Image,
-  TextInput,
-  Animated,
-  TouchableOpacity,
-  Dimensions,
+  RefreshControl,
   ActivityIndicator,
+  FlatList,
+  TouchableOpacity,
 } from 'react-native'
-import { SafeAreaView } from 'react-native-safe-area-context'
-import { StatusBar } from 'expo-status-bar'
-import { Ionicons } from '@expo/vector-icons'
-import { LinearGradient } from 'expo-linear-gradient'
-import AnimatedView from '../../components/AnimatedView'
-import Card from '../../components/Card'
-import axios from 'axios'
-import { jwt_decode } from 'jwt-decode'
+import { useAuth } from '../../context/AuthContext'
+import {
+  getRecommendedTreks,
+  getTrendingTreks,
+  getPopularDestinations,
+} from '../../services/recommendationService'
+import TrekCard from '../../components/TrekCard'
+import { Mountain, TrendingUp, MapPin, Compass } from 'lucide-react-native'
 
-const { width } = Dimensions.get('window')
-
-const fetchItineraries = async () => {
-  const res = await axios.get(`http://10.0.2.2:5000/api/trek/allitinerary`)
-  const data = res.data.treks
-  if (!Array.isArray(data)) throw new Error('Itineraries must be an array')
-  return data.filter((itinerary) => itinerary.isApproved === true)
-}
-
-const fetchDestinations = async () => []
-const fetchUpcomingTrek = async () => null
-const fetchWeatherData = async () => ({
-  temperature: 24,
-  condition: 'Sunny',
-  location: 'Kathmandu',
-})
-
-const HomeScreen = ({ navigation, authState }) => {
-  const { user, token } = authState
-  const [userData, setUserData] = useState(user)
-
-  useEffect(() => {
-    if (token) {
-      try {
-        const decodedToken = jwt_decode(token)
-        setUserData(decodedToken.user)
-      } catch (e) {
-        console.error('Error decoding token:', e)
-      }
-    }
-  }, [token])
-
-  const [searchQuery, setSearchQuery] = useState('')
-  const [selectedCategory, setSelectedCategory] = useState('all')
-  const [refreshing, setRefreshing] = useState(false)
+const HomeScreen = ({ navigation }) => {
+  const { user } = useAuth()
   const [loading, setLoading] = useState(true)
-  const [weatherData, setWeatherData] = useState({
-    temp: '24°C',
-    condition: 'Sunny',
-  })
-  const [itineraries, setItineraries] = useState([])
-  const [destinations, setDestinations] = useState([])
-  const [upcomingTrek, setUpcomingTrek] = useState(null)
+  const [refreshing, setRefreshing] = useState(false)
+  const [recommendations, setRecommendations] = useState([])
+  const [trendingTreks, setTrendingTreks] = useState([])
+  const [popularDestinations, setPopularDestinations] = useState([])
 
-  const scrollY = useRef(new Animated.Value(0)).current
-  const searchBarTranslateY = useRef(new Animated.Value(100)).current
-  const searchBarOpacity = useRef(new Animated.Value(0)).current
-  const floatingButtonScale = useRef(new Animated.Value(0)).current
+  const fetchData = async () => {
+    if (!user || !user.token) {
+      setLoading(false)
+      return
+    }
 
-  const headerParallaxY = scrollY.interpolate({
-    inputRange: [-100, 0, 100],
-    outputRange: [50, 0, -30],
-    extrapolate: 'clamp',
-  })
-
-  const headerOpacity = scrollY.interpolate({
-    inputRange: [0, 100],
-    outputRange: [1, 0.95],
-    extrapolate: 'clamp',
-  })
-
-  const headerHeight = scrollY.interpolate({
-    inputRange: [0, 100],
-    outputRange: [240, 140],
-    extrapolate: 'clamp',
-  })
-
-  const headerScale = scrollY.interpolate({
-    inputRange: [-100, 0],
-    outputRange: [1.1, 1],
-    extrapolate: 'clamp',
-  })
-
-  const loadAllData = async () => {
-    setLoading(true)
     try {
-      const [treks, dests, upcoming, weather] = await Promise.all([
-        fetchItineraries(),
-        fetchDestinations(),
-        fetchUpcomingTrek(),
-        fetchWeatherData(),
+      const [recommendedData, trendingData, popularData] = await Promise.all([
+        getRecommendedTreks(user.id, user.token),
+        getTrendingTreks(user.token),
+        getPopularDestinations(user.token),
       ])
-      setItineraries(treks)
-      setDestinations(dests)
-      setUpcomingTrek(upcoming)
-      setWeatherData({
-        temp: `${weather.temperature}°C`,
-        condition: weather.condition,
-      })
-    } catch (e) {
-      console.error('Error loading data:', e)
+
+      setRecommendations(recommendedData || [])
+      setTrendingTreks(trendingData || [])
+      setPopularDestinations(popularData || [])
+    } catch (error) {
+      console.error('Error fetching home data:', error)
+      setRecommendations([])
+      setTrendingTreks([])
+      setPopularDestinations([])
     } finally {
       setLoading(false)
     }
   }
 
-  useEffect(() => {
-    loadAllData()
-    Animated.parallel([
-      Animated.timing(searchBarTranslateY, {
-        toValue: 0,
-        duration: 800,
-        useNativeDriver: true,
-      }),
-      Animated.timing(searchBarOpacity, {
-        toValue: 1,
-        duration: 800,
-        useNativeDriver: true,
-      }),
-      Animated.spring(floatingButtonScale, {
-        toValue: 1,
-        friction: 6,
-        tension: 40,
-        useNativeDriver: true,
-      }),
-    ]).start()
-  }, [])
-
-  const handleRefresh = async () => {
+  const onRefresh = async () => {
     setRefreshing(true)
-    await loadAllData()
+    await fetchData()
     setRefreshing(false)
   }
 
-  const renderTrekItem = ({ item, index }) => (
-    <Card
-      animation="scaleIn"
-      delay={150 + index * 100}
-      style={{
-        width: '100%',
-        marginBottom: 16,
-        borderRadius: 16,
-        overflow: 'hidden',
-        backgroundColor: 'white',
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.1,
-        shadowRadius: 8,
-        elevation: 5,
-      }}
-      onPress={() =>
-        navigation.navigate('ItineraryDetail', { itineraryId: item._id })
-      }
-    >
-      <View style={{ position: 'relative' }}>
-        <Image
-          source={{
-            uri: item.images[0] || '/placeholder.svg?height=200&width=300',
-          }}
-          style={{
-            width: '100%',
-            height: 200,
-            borderTopLeftRadius: 16,
-            borderTopRightRadius: 16,
-          }}
-        />
-        <LinearGradient
-          colors={['transparent', 'rgba(0,0,0,0.7)']}
-          style={{
-            position: 'absolute',
-            bottom: 0,
-            left: 0,
-            right: 0,
-            height: 80,
-            borderTopLeftRadius: 16,
-            borderTopRightRadius: 16,
-          }}
-        />
-        <View
-          style={{
-            position: 'absolute',
-            top: 12,
-            right: 12,
-            backgroundColor: 'rgba(249, 115, 22, 0.9)',
-            paddingHorizontal: 10,
-            paddingVertical: 5,
-            borderRadius: 20,
-          }}
-        >
-          <Text style={{ color: 'white', fontWeight: 'bold' }}>
-            {item.rating || '4.8'} ★
-          </Text>
-        </View>
-      </View>
-
-      <View style={{ padding: 16 }}>
-        <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#1f2937' }}>
-          {item.title}
-        </Text>
-        <View
-          style={{ flexDirection: 'row', alignItems: 'center', marginTop: 8 }}
-        >
-          <Ionicons name="location-outline" size={18} color="#f97316" />
-          <Text style={{ marginLeft: 6, color: '#4b5563', fontSize: 15 }}>
-            {item.location}
-          </Text>
-        </View>
-
-        <View
-          style={{
-            flexDirection: 'row',
-            alignItems: 'center',
-            marginTop: 12,
-            justifyContent: 'space-between',
-          }}
-        >
-          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-            <Ionicons name="calendar-outline" size={18} color="#f97316" />
-            <Text style={{ marginLeft: 6, color: '#4b5563', fontSize: 15 }}>
-              {item.duration || '7 days'}
-            </Text>
-          </View>
-          <TouchableOpacity
-            style={{
-              backgroundColor: '#f97316',
-              paddingHorizontal: 16,
-              paddingVertical: 8,
-              borderRadius: 8,
-              flexDirection: 'row',
-              alignItems: 'center',
-            }}
-          >
-            <Text
-              style={{ color: 'white', fontWeight: 'bold', marginRight: 4 }}
-            >
-              Details
-            </Text>
-            <Ionicons name="arrow-forward" size={16} color="white" />
-          </TouchableOpacity>
-        </View>
-      </View>
-    </Card>
-  )
+  useEffect(() => {
+    fetchData()
+  }, [user])
 
   if (loading) {
     return (
-      <SafeAreaView
-        style={{
-          flex: 1,
-          justifyContent: 'center',
-          alignItems: 'center',
-          backgroundColor: '#fff8f0',
-        }}
-      >
-        <ActivityIndicator size="large" color="#f97316" />
-        <Text style={{ marginTop: 12, color: '#f97316', fontWeight: '500' }}>
-          Loading adventures…
-        </Text>
-      </SafeAreaView>
+      <View className="flex-1 justify-center items-center bg-gradient-to-br from-orange-50 to-red-50">
+        <View className="bg-white rounded-2xl p-8 shadow-lg items-center">
+          <ActivityIndicator size="large" color="#ea580c" />
+          <Text className="text-gray-600 mt-4 font-medium">
+            Loading adventures...
+          </Text>
+        </View>
+      </View>
     )
   }
 
-  return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: '#fff8f0' }}>
-      <StatusBar style="dark" />
-      <Animated.View
-        style={{
-          height: headerHeight,
-          opacity: headerOpacity,
-          transform: [{ translateY: headerParallaxY }, { scale: headerScale }],
-        }}
-      >
-        <LinearGradient
-          colors={['#f97316', '#fb923c', '#fdba74']}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={{ flex: 1, padding: 16, paddingBottom: 40 }}
-        >
-          <View
-            style={{
-              flexDirection: 'row',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-            }}
-          >
-            <View>
-              <Text style={{ color: 'rgba(255,255,255,0.9)', fontSize: 16 }}>
-                Welcome back,
-              </Text>
-              <Text style={{ color: '#fff', fontSize: 24, fontWeight: 'bold' }}>
-                {userData?.name || 'Traveler'}
-              </Text>
-              <View
-                style={{
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  marginTop: 6,
-                  backgroundColor: 'rgba(255,255,255,0.2)',
-                  paddingHorizontal: 10,
-                  paddingVertical: 4,
-                  borderRadius: 20,
-                }}
-              >
-                <Ionicons
-                  name={
-                    weatherData.condition === 'Sunny'
-                      ? 'sunny'
-                      : 'cloud-outline'
-                  }
-                  size={16}
-                  color="#fff"
-                />
-                <Text
-                  style={{ color: '#fff', marginLeft: 6, fontWeight: '500' }}
-                >
-                  {weatherData.temp} • {weatherData.condition}
-                </Text>
-              </View>
-            </View>
-            <TouchableOpacity
-              style={{
-                width: 48,
-                height: 48,
-                borderRadius: 24,
-                backgroundColor: 'rgba(255,255,255,0.2)',
-                justifyContent: 'center',
-                alignItems: 'center',
-              }}
-              onPress={() => navigation.navigate('Profile')}
-            >
-              <Ionicons name="person" size={24} color="white" />
-            </TouchableOpacity>
-          </View>
-        </LinearGradient>
-      </Animated.View>
+  if (!user) {
+    return (
+      <View className="flex-1 justify-center items-center bg-gradient-to-br from-orange-50 to-red-50">
+        <View className="bg-white rounded-2xl p-8 shadow-lg items-center mx-6">
+          <Mountain size={48} color="#ea580c" />
+          <Text className="text-xl font-bold text-gray-800 mt-4">
+            Welcome to TrekApp
+          </Text>
+          <Text className="text-gray-600 text-center mt-2">
+            Please log in to discover amazing treks
+          </Text>
+          <TouchableOpacity className="bg-orange-500 rounded-xl px-6 py-3 mt-6">
+            <Text className="text-white font-semibold">Get Started</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    )
+  }
 
-      <FlatList
-        data={itineraries}
-        keyExtractor={(item) => item.id}
-        refreshing={refreshing}
-        onRefresh={handleRefresh}
-        showsVerticalScrollIndicator={false}
-        onScroll={Animated.event(
-          [{ nativeEvent: { contentOffset: { y: scrollY } } }],
-          { useNativeDriver: false }
-        )}
-        scrollEventThrottle={16}
-        ListHeaderComponent={
-          <View style={{ padding: 16 }}>
-            <Animated.View
-              style={{
-                marginBottom: 20,
-                transform: [{ translateY: searchBarTranslateY }],
-                opacity: searchBarOpacity,
-              }}
-            >
-              <View
-                style={{
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  backgroundColor: '#fff',
-                  borderRadius: 12,
-                  paddingHorizontal: 16,
-                  paddingVertical: 12,
-                  shadowColor: '#000',
-                  shadowOffset: { width: 0, height: 2 },
-                  shadowOpacity: 0.1,
-                  shadowRadius: 4,
-                  elevation: 2,
-                }}
-              >
-                <Ionicons name="search" size={20} color="#f97316" />
-                <TextInput
-                  style={{
-                    flex: 1,
-                    marginLeft: 10,
-                    fontSize: 16,
-                    color: '#4b5563',
-                  }}
-                  placeholder="Search for trekking adventures"
-                  placeholderTextColor="#9ca3af"
-                  value={searchQuery}
-                  onChangeText={setSearchQuery}
-                />
-              </View>
-            </Animated.View>
-
-            <View
-              style={{
-                flexDirection: 'row',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                marginBottom: 12,
-              }}
-            >
-              <Text
-                style={{ fontSize: 20, fontWeight: 'bold', color: '#1f2937' }}
-              >
-                Popular Treks
-              </Text>
-              <TouchableOpacity>
-                <Text style={{ color: '#f97316', fontWeight: '500' }}>
-                  See All
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </View>
+  const renderTrekCard = ({ item: trek }) => {
+    if (!trek || !trek._id) return null
+    return (
+      <TrekCard
+        trek={trek}
+        onPress={() =>
+          navigation.navigate('ItineraryDetail', {
+            itineraryId: trek._id,
+          })
         }
-        renderItem={renderTrekItem}
-        contentContainerStyle={{
-          paddingHorizontal: 16,
-          paddingBottom: 100,
-        }}
       />
+    )
+  }
 
-      <TouchableOpacity
-        style={{
-          position: 'absolute',
-          bottom: 20,
-          left: 16,
-          right: 16,
-          backgroundColor: '#f97316',
-          borderRadius: 16,
-          padding: 16,
-          flexDirection: 'row',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          shadowColor: '#000',
-          shadowOffset: { width: 0, height: 4 },
-          shadowOpacity: 0.2,
-          shadowRadius: 8,
-          elevation: 5,
-        }}
-        onPress={() => navigation.navigate('BudgetPlanner')}
-      >
-        <View>
-          <Text style={{ color: 'white', fontWeight: 'bold', fontSize: 18 }}>
-            Budget Planner
-          </Text>
-          <Text style={{ color: 'rgba(255,255,255,0.9)', marginTop: 4 }}>
-            Manage your travel expenses
-          </Text>
+  const renderSection = ({ section, data, onSeeAll, icon: Icon }) => (
+    <View className="mb-8">
+      <View className="flex-row items-center justify-between px-6 mb-4">
+        <View className="flex-row items-center">
+          <View className="w-10 h-10 bg-orange-100 rounded-xl items-center justify-center mr-3">
+            <Icon size={20} color="#ea580c" />
+          </View>
+          <Text className="text-xl font-bold text-gray-800">{section}</Text>
         </View>
-        <View
-          style={{
-            backgroundColor: 'rgba(255,255,255,0.2)',
-            width: 40,
-            height: 40,
-            borderRadius: 20,
-            justifyContent: 'center',
-            alignItems: 'center',
-          }}
-        >
-          <Ionicons name="wallet" size={22} color="white" />
+        <TouchableOpacity onPress={onSeeAll}>
+          <Text className="text-orange-600 font-medium">See All</Text>
+        </TouchableOpacity>
+      </View>
+      <FlatList
+        data={data}
+        renderItem={renderTrekCard}
+        keyExtractor={(item) => item._id}
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={{ paddingHorizontal: 16 }}
+      />
+    </View>
+  )
+
+  const sections = [
+    {
+      data: recommendations,
+      title: 'Recommended for You',
+      icon: Compass,
+      onSeeAll: () => navigation.navigate('Explore', { filter: 'recommended' }),
+    },
+    {
+      data: trendingTreks,
+      title: 'Trending Now',
+      icon: TrendingUp,
+      onSeeAll: () => navigation.navigate('Explore', { filter: 'trending' }),
+    },
+    {
+      data: popularDestinations,
+      title: 'Popular Destinations',
+      icon: MapPin,
+      onSeeAll: () => navigation.navigate('Explore', { filter: 'popular' }),
+    },
+  ].filter((section) => section.data && section.data.length > 0)
+
+  const renderContent = () => (
+    <View className="flex-1">
+      {/* Header */}
+      <View className="bg-gradient-to-r from-orange-500 to-red-600 px-6 pt-12 pb-8 rounded-b-3xl">
+        <View className="flex-row items-center justify-between">
+          <View className="flex-1">
+            <Text className="text-white text-lg opacity-90">Good morning!</Text>
+            <Text className="text-white text-2xl font-bold mt-1">
+              {user?.name || 'Traveler'}
+            </Text>
+            <Text className="text-white opacity-90 mt-2">
+              Ready for your next adventure?
+            </Text>
+          </View>
+          <View className="w-12 h-12 bg-white/20 rounded-full items-center justify-center">
+            <Mountain size={24} color="white" />
+          </View>
         </View>
-      </TouchableOpacity>
-    </SafeAreaView>
+      </View>
+
+      {/* Quick Stats */}
+      <View className="flex-row mx-6 -mt-6 mb-6">
+        <View className="flex-1 bg-white rounded-2xl p-4 mr-2 shadow-sm">
+          <Text className="text-2xl font-bold text-gray-800">12</Text>
+          <Text className="text-gray-600 text-sm">Treks Completed</Text>
+        </View>
+        <View className="flex-1 bg-white rounded-2xl p-4 ml-2 shadow-sm">
+          <Text className="text-2xl font-bold text-gray-800">4.8</Text>
+          <Text className="text-gray-600 text-sm">Average Rating</Text>
+        </View>
+      </View>
+
+      {/* Sections */}
+      {sections.map((section, index) => (
+        <View key={section.title}>
+          {renderSection({
+            section: section.title,
+            data: section.data,
+            onSeeAll: section.onSeeAll,
+            icon: section.icon,
+          })}
+        </View>
+      ))}
+    </View>
+  )
+
+  return (
+    <View className="flex-1 bg-gray-50">
+      <FlatList
+        data={[{ key: 'content' }]}
+        renderItem={renderContent}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
+        showsVerticalScrollIndicator={false}
+      />
+    </View>
   )
 }
 

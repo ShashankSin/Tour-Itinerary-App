@@ -233,6 +233,9 @@ function BookingScreen({ navigation, route }) {
         paymentStatus: 'pending',
         paymentMethod: formData.paymentMethod,
         specialRequests: formData.specialRequests || '',
+        customerName: formData.fullName,
+        customerEmail: formData.email,
+        customerPhone: formData.phone,
       }
 
       console.log('Booking Data:', JSON.stringify(bookingData, null, 2))

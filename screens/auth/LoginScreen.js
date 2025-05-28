@@ -13,10 +13,12 @@ import {
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { StatusBar } from 'expo-status-bar'
-import AsyncStorage from '@react-native-async-storage/async-storage'
+import { useAuth } from '../../context/AuthContext'
+import { CommonActions } from '@react-navigation/native'
 
-function LoginScreen({ route, navigation, setUser }) {
+function LoginScreen({ route, navigation }) {
   const { userType = 'user' } = route.params || {}
+  const { login } = useAuth()
 
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -24,6 +26,8 @@ function LoginScreen({ route, navigation, setUser }) {
   const [error, setError] = useState('')
 
   const handleLogin = async () => {
+    if (isLoading) return
+
     setIsLoading(true)
     setError('')
 
@@ -39,27 +43,21 @@ function LoginScreen({ route, navigation, setUser }) {
       const data = await response.json()
 
       if (response.ok && data.success) {
-        await AsyncStorage.setItem('token', data.token)
-        await AsyncStorage.setItem('userType', userType)
+        await login(data.token, userType, email)
 
-        console.log('Login successful!')
-        console.log('Token:', data.token)
-        console.log('UserType:', userType)
-
-        setUser({
-          role: userType, // ✅ This fixes navigation condition
-          email,
-          token: data.token,
-        })
-
-        // Optional: Navigate directly after login
-        // navigation.replace(userType === 'admin' ? 'AdminTabs' : userType === 'company' ? 'CompanyTabs' : 'UserTabs')
+        // Reset navigation state and navigate to main app
+        navigation.dispatch(
+          CommonActions.reset({
+            index: 0,
+            routes: [{ name: 'Main' }],
+          })
+        )
       } else {
         setError(data.message || 'Invalid credentials')
         Alert.alert('Login Failed', data.message || 'Invalid credentials')
       }
     } catch (err) {
-      console.error(err)
+      console.error('Login error:', err)
       setError('An error occurred. Please try again.')
       Alert.alert('Login Failed', 'An error occurred. Please try again.')
     } finally {

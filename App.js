@@ -1,55 +1,67 @@
-import { useState, useEffect } from 'react'
-import './global.css'
+import React from 'react'
 import { NavigationContainer } from '@react-navigation/native'
-import { StatusBar } from 'expo-status-bar'
 import { SafeAreaProvider } from 'react-native-safe-area-context'
-import { View, Text, ActivityIndicator } from 'react-native'
-import AppNavigator from './navigation/AppNavigator' // <-- Import the combined AppNavigator
+import RootNavigator from './navigation/AppNavigator'
+import { AuthProvider } from './context/AuthContext'
+import { StatusBar } from 'expo-status-bar'
+import axios from 'axios'
+import AsyncStorage from '@react-native-async-storage/async-storage'
+import { jwtDecode } from 'jwt-decode'
+import './global.css'
+
+// Configure axios defaults
+axios.defaults.baseURL = 'http://10.0.2.2:5000/api'
+axios.defaults.timeout = 5000
+
+// Add request interceptor to add auth token
+axios.interceptors.request.use(
+  async (config) => {
+    try {
+      const token = await AsyncStorage.getItem('token')
+      if (token) {
+        // Check token expiration
+        const decoded = jwtDecode(token)
+        const currentTime = Date.now() / 1000
+
+        if (decoded.exp && decoded.exp < currentTime) {
+          // Token is expired, clear it
+          await AsyncStorage.multiRemove(['token', 'userType'])
+          throw new Error('Token expired')
+        }
+
+        config.headers.Authorization = `Bearer ${token}`
+      }
+      return config
+    } catch (error) {
+      return Promise.reject(error)
+    }
+  },
+  (error) => {
+    return Promise.reject(error)
+  }
+)
+
+// Add response interceptor to handle errors
+axios.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    if (error.response?.status === 401) {
+      // Clear auth data on unauthorized
+      await AsyncStorage.multiRemove(['token', 'userType'])
+    }
+    return Promise.reject(error)
+  }
+)
 
 export default function App() {
-  const [isLoading, setIsLoading] = useState(true)
-  const [user, setUser] = useState(null)
-
-  const authState = {
-    user: user || null, // Keep it null if no user
-  }
-
-  useEffect(() => {
-    // Simulate loading or data fetching
-    const timer = setTimeout(() => {
-      setIsLoading(false)
-      // Uncomment to simulate a logged-in user
-      // setUser({ type: 'user' });
-      // setUser({ type: 'company' });
-      // setUser({ type: 'admin' });
-    }, 1000)
-
-    return () => clearTimeout(timer)
-  }, [])
-
-  if (isLoading) {
-    return (
-      <View
-        style={{
-          flex: 1,
-          justifyContent: 'center',
-          alignItems: 'center',
-          backgroundColor: '#f9fafb',
-        }}
-      >
-        <ActivityIndicator size="large" color="#2563eb" />
-        <Text style={{ marginTop: 10, color: '#6b7280' }}>Loading...</Text>
-      </View>
-    )
-  }
-
   return (
-    <SafeAreaProvider>
-      <StatusBar style="auto" />
-      <NavigationContainer>
-        {/* Pass setUser to AppNavigator */}
-        <AppNavigator authState={authState} setUser={setUser} />
-      </NavigationContainer>
-    </SafeAreaProvider>
+    <NavigationContainer>
+      <AuthProvider>
+        <SafeAreaProvider>
+          <StatusBar style="auto" />
+          <RootNavigator />
+        </SafeAreaProvider>
+      </AuthProvider>
+    </NavigationContainer>
   )
 }

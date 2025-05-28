@@ -54,13 +54,15 @@ const EditItineraryScreen = ({ route, navigation }) => {
     { label: 'Difficult', value: 'difficult' },
     { label: 'Extreme', value: 'extreme' },
   ]
-  s
+
   const categoryOptions = [
     { label: 'Hiking', value: 'hiking' },
     { label: 'Trekking', value: 'trekking' },
-    { label: 'Mountain Climbing', value: 'mountain-climbing' },
+    { label: 'Mountain Climbing', value: 'mountain climbing' },
     { label: 'Camping', value: 'camping' },
-    { label: 'Wildlife Safari', value: 'wildlife-safari' },
+    { label: 'International Travel', value: 'international travel' },
+    { label: 'Adventure Travel', value: 'adventure travel' },
+    { label: 'Wildlife Safari', value: 'wildlife safari' },
   ]
 
   useEffect(() => {
@@ -68,6 +70,7 @@ const EditItineraryScreen = ({ route, navigation }) => {
       console.log('Calling fetchTrekById with:', trekId)
       fetchTrekById(trekId)
     } else {
+      setLoading(false)
       console.log('No trekId received')
     }
   }, [trekId])
@@ -207,27 +210,30 @@ const EditItineraryScreen = ({ route, navigation }) => {
         return
       }
 
+      // Normalize the data before sending
+      const normalizedData = {
+        title: trekForm.title,
+        location: trekForm.location,
+        description: trekForm.description,
+        duration: Number(trekForm.duration),
+        price: Number(trekForm.price),
+        difficulty: trekForm.difficulty?.toLowerCase(),
+        category: trekForm.category?.toLowerCase(),
+        images: trekForm.images,
+        itinerary: trekForm.itinerary,
+        inclusions: trekForm.inclusions,
+        route: trekForm.route,
+      }
+
       const response = await fetch(
-        `http://10.0.2.2:5000/api/trek/update/${trekId}`, // ✅ make sure `trekId` is defined
+        `http://10.0.2.2:5000/api/trek/update/${trekId}`,
         {
           method: 'PUT',
           headers: {
             'Content-Type': 'application/json',
             Authorization: `Bearer ${token}`,
           },
-          body: JSON.stringify({
-            title: trekForm.title,
-            location: trekForm.location,
-            description: trekForm.description,
-            duration: Number(trekForm.duration),
-            price: Number(trekForm.price),
-            difficulty: trekForm.difficulty,
-            category: trekForm.category,
-            images: trekForm.images,
-            itinerary: trekForm.itinerary,
-            inclusions: trekForm.inclusions,
-            route: trekForm.route,
-          }),
+          body: JSON.stringify(normalizedData),
         }
       )
 
@@ -349,10 +355,10 @@ const EditItineraryScreen = ({ route, navigation }) => {
   const pickImage = async () => {
     try {
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        mediaTypes: [ImagePicker.MediaType.Images],
         allowsEditing: true,
         aspect: [16, 9],
-        quality: 0.8,
+        quality: 1,
       })
 
       if (!result.canceled) {

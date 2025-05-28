@@ -237,18 +237,23 @@ function CompanyItinerariesScreen() {
   }
 
   const pickImage = async () => {
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      aspect: [16, 9],
-      quality: 0.8,
-    })
-
-    if (!result.canceled) {
-      setTrekForm({
-        ...trekForm,
-        images: [...trekForm.images, result.assets[0].uri],
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: [ImagePicker.MediaType.Images],
+        allowsEditing: true,
+        aspect: [16, 9],
+        quality: 1,
       })
+
+      if (!result.canceled) {
+        setTrekForm({
+          ...trekForm,
+          images: [...trekForm.images, result.assets[0].uri],
+        })
+      }
+    } catch (error) {
+      console.error('Image picker error:', error)
+      Alert.alert('Error', 'Failed to pick image')
     }
   }
 

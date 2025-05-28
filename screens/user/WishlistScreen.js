@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useState } from 'react'
 import {
   View,
   Text,
@@ -11,18 +11,21 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import AsyncStorage from '@react-native-async-storage/async-storage'
+import { useFocusEffect } from '@react-navigation/native'
 import axios from 'axios'
 import { jwtDecode } from 'jwt-decode'
 
 function WishlistScreen({ navigation }) {
   const [wishlistItems, setWishlistItems] = useState([])
   const [loading, setLoading] = useState(true)
-  const handleBooking = async () => {
+
+  const handleBooking = async (itineraryId) => {
     const token = await AsyncStorage.getItem('token')
     console.log('Token:', token)
-    console.log('Trek ID:', itineraryId) // Log the ID
+    console.log('Trek ID:', itineraryId)
     navigation.navigate('Booking', { trekId: itineraryId })
   }
+
   const fetchWishlist = async () => {
     try {
       setLoading(true)
@@ -62,9 +65,12 @@ function WishlistScreen({ navigation }) {
     }
   }
 
-  useEffect(() => {
-    fetchWishlist()
-  }, [])
+  useFocusEffect(
+    React.useCallback(() => {
+      console.log('🔄 Wishlist screen focused - refreshing data')
+      fetchWishlist()
+    }, [])
+  )
 
   return (
     <SafeAreaView className="flex-1 bg-orange-50">
@@ -118,7 +124,7 @@ function WishlistScreen({ navigation }) {
                     </Text>
                     <TouchableOpacity
                       className="bg-orange-500 px-4 py-2 rounded-lg"
-                      onPress={handleBooking}
+                      onPress={() => handleBooking(item._id)}
                     >
                       <Text className="text-white font-medium">Book Now</Text>
                     </TouchableOpacity>
