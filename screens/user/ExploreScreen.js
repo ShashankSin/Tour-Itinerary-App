@@ -12,10 +12,19 @@ import {
   Alert,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
-import { Ionicons } from '@expo/vector-icons'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import axios from 'axios'
 import { jwtDecode } from 'jwt-decode'
+import {
+  Search,
+  Filter,
+  MapPin,
+  Star,
+  Clock,
+  Compass,
+  X,
+  Mountain,
+} from 'lucide-react-native'
 
 function ExploreScreen({ navigation, route }) {
   const [searchQuery, setSearchQuery] = useState('')
@@ -30,8 +39,7 @@ function ExploreScreen({ navigation, route }) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
 
-  // Get userId from your authentication system
-  const userId = route?.params?.userId // Replace with actual user ID from auth
+  const userId = route?.params?.userId
 
   useEffect(() => {
     fetchRecommendations()
@@ -99,75 +107,125 @@ function ExploreScreen({ navigation, route }) {
 
   const TrekCard = ({ trek, showSimilarity = false }) => (
     <TouchableOpacity
-      className="mx-4 mb-4 bg-white rounded-xl overflow-hidden shadow"
+      className="mx-2 mb-4 bg-white rounded-3xl overflow-hidden shadow-lg border border-gray-200"
+      style={{ width: 300 }}
       onPress={() => navigation.navigate('TrekDetail', { id: trek._id })}
     >
-      <Image
-        source={{
-          uri:
-            trek.images?.[0] ||
-            `https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=400&h=200&fit=crop`,
-        }}
-        className="w-full h-48"
-        resizeMode="cover"
-      />
-      <View className="p-3">
-        <Text className="text-lg font-bold text-gray-800">{trek.title}</Text>
-        <View className="flex-row justify-between items-center mt-1">
+      <View className="relative">
+        <Image
+          source={{
+            uri:
+              trek.images?.[0] ||
+              `https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=400&h=200&fit=crop`,
+          }}
+          className="w-full h-52"
+          resizeMode="cover"
+        />
+
+        <View className="absolute top-4 right-4 bg-black/70 rounded-full px-3 py-2">
           <View className="flex-row items-center">
-            <Ionicons name="location-outline" size={16} color="#9ca3af" />
-            <Text className="ml-1 text-gray-500">{trek.location}</Text>
-          </View>
-          <View className="flex-row items-center">
-            <Ionicons name="star" size={16} color="#f97316" />
-            <Text className="ml-1 text-gray-700">{trek.rating}</Text>
-          </View>
-        </View>
-        <View className="flex-row justify-between items-center mt-2">
-          <Text className="text-orange-600 font-semibold">₹{trek.price}</Text>
-          <View className="flex-row items-center">
-            <Text className="text-sm text-gray-500 capitalize">
-              {trek.difficulty}
-            </Text>
-            <Text className="text-sm text-gray-400 ml-2">
-              • {trek.duration} days
+            <Star size={14} color="#fbbf24" />
+            <Text className="text-white text-sm ml-1 font-semibold">
+              {trek.rating}
             </Text>
           </View>
         </View>
+
         {showSimilarity && trek.similarityScore && (
-          <View className="mt-2 bg-orange-50 px-2 py-1 rounded">
-            <Text className="text-xs text-orange-600">
-              {Math.round(trek.similarityScore * 100)}% match for you
+          <View className="absolute top-4 left-4 bg-orange-500 rounded-full px-3 py-2">
+            <Text className="text-white text-sm font-bold">
+              {Math.round(trek.similarityScore * 100)}% match
             </Text>
           </View>
         )}
+      </View>
+
+      <View className="p-5">
+        <Text
+          className="text-xl font-bold text-gray-800 mb-3"
+          numberOfLines={1}
+        >
+          {trek.title}
+        </Text>
+
+        <View className="flex-row items-center mb-3">
+          <MapPin size={16} color="#6b7280" />
+          <Text
+            className="ml-2 text-gray-600 text-base flex-1"
+            numberOfLines={1}
+          >
+            {trek.location}
+          </Text>
+        </View>
+
+        <View className="flex-row items-center justify-between mb-4">
+          <View className="flex-row items-center">
+            <Clock size={16} color="#6b7280" />
+            <Text className="ml-2 text-gray-600 text-base">
+              {trek.duration} days
+            </Text>
+          </View>
+          <View
+            className={`px-3 py-2 rounded-full ${
+              trek.difficulty === 'easy'
+                ? 'bg-green-100'
+                : trek.difficulty === 'moderate'
+                ? 'bg-yellow-100'
+                : 'bg-red-100'
+            }`}
+          >
+            <Text
+              className={`text-sm font-semibold capitalize ${
+                trek.difficulty === 'easy'
+                  ? 'text-green-800'
+                  : trek.difficulty === 'moderate'
+                  ? 'text-yellow-800'
+                  : 'text-red-800'
+              }`}
+            >
+              {trek.difficulty}
+            </Text>
+          </View>
+        </View>
+
+        <View className="flex-row items-center justify-between">
+          <Text className="text-2xl font-bold text-orange-600">
+            ₹{trek.price}
+          </Text>
+          <TouchableOpacity className="bg-orange-500 rounded-2xl px-6 py-3 shadow-lg">
+            <Text className="text-white text-base font-bold">Book Now</Text>
+          </TouchableOpacity>
+        </View>
       </View>
     </TouchableOpacity>
   )
 
   const DestinationCard = ({ destination }) => (
     <TouchableOpacity
-      className="mr-4 bg-white rounded-xl overflow-hidden shadow"
-      style={{ width: 200 }}
+      className="mr-4 bg-white rounded-3xl overflow-hidden shadow-lg border border-gray-200"
+      style={{ width: 220 }}
       onPress={() =>
         navigation.navigate('LocationTreks', { location: destination.location })
       }
     >
       <Image
         source={{ uri: destination.image }}
-        className="w-full h-24"
+        className="w-full h-36"
         resizeMode="cover"
       />
-      <View className="p-3">
-        <Text className="font-bold text-gray-800">{destination.location}</Text>
-        <View className="flex-row justify-between items-center mt-1">
+
+      <View className="p-5">
+        <Text className="font-bold text-gray-800 mb-3 text-lg">
+          {destination.location}
+        </Text>
+        <View className="flex-row justify-between items-center">
           <View className="flex-row items-center">
-            <Ionicons name="star" size={14} color="#f97316" />
-            <Text className="ml-1 text-sm text-gray-600">
+            <Star size={16} color="#fbbf24" />
+            <Text className="ml-2 text-base text-gray-600 font-medium">
               {destination.avgRating}
             </Text>
           </View>
-          <Text className="text-xs text-gray-500">
+          <Text className="text-sm text-gray-500 font-medium">
             {destination.trekCount} treks
           </Text>
         </View>
@@ -176,34 +234,57 @@ function ExploreScreen({ navigation, route }) {
   )
 
   const SearchBar = () => (
-    <View className="px-4 py-2">
-      <View className="flex-row items-center bg-gray-100 rounded-full px-4 py-2">
-        <Ionicons name="search" size={20} color="#9ca3af" />
+    <View className="px-6 py-4">
+      <View className="flex-row items-center bg-white rounded-3xl px-6 py-4 shadow-lg border border-gray-200">
+        <Search size={22} color="#ea580c" />
         <TextInput
-          className="flex-1 ml-2 text-gray-800"
+          className="flex-1 ml-4 text-gray-800 text-lg"
           placeholder="Search destinations, treks..."
           value={searchQuery}
           onChangeText={setSearchQuery}
           onSubmitEditing={handleSearch}
           returnKeyType="search"
+          placeholderTextColor="#9ca3af"
         />
-        {searchQuery.length > 0 && (
+        {isSearching ? (
+          <ActivityIndicator size="small" color="#ea580c" />
+        ) : searchQuery.length > 0 ? (
           <TouchableOpacity
             onPress={() => {
               setSearchQuery('')
               setShowSearchResults(false)
             }}
           >
-            <Ionicons name="close-circle" size={20} color="#9ca3af" />
+            <X size={22} color="#6b7280" />
+          </TouchableOpacity>
+        ) : (
+          <TouchableOpacity>
+            <Filter size={22} color="#6b7280" />
           </TouchableOpacity>
         )}
       </View>
     </View>
   )
 
-  const renderSection = ({ title, data, renderItem }) => (
-    <View className="mb-6">
-      <Text className="text-lg font-bold text-gray-800 px-4 mb-2">{title}</Text>
+  const SectionHeader = ({ title, icon: Icon, onSeeAll }) => (
+    <View className="flex-row items-center justify-between px-6 mb-6">
+      <View className="flex-row items-center">
+        <View className="w-14 h-14 bg-orange-500 rounded-2xl items-center justify-center mr-4 shadow-lg">
+          <Icon size={24} color="white" />
+        </View>
+        <Text className="text-2xl font-bold text-gray-800">{title}</Text>
+      </View>
+      {onSeeAll && (
+        <TouchableOpacity onPress={onSeeAll}>
+          <Text className="text-orange-600 font-bold text-lg">See All</Text>
+        </TouchableOpacity>
+      )}
+    </View>
+  )
+
+  const renderSection = ({ title, data, renderItem, icon }) => (
+    <View className="mb-10">
+      <SectionHeader title={title} icon={icon} />
       <FlatList
         data={data}
         renderItem={renderItem}
@@ -217,30 +298,61 @@ function ExploreScreen({ navigation, route }) {
 
   const sections = [
     {
-      title: 'Recommended Treks',
+      title: 'Recommended for You',
       data: recommendations,
       renderItem: ({ item }) => <TrekCard trek={item} showSimilarity />,
+      icon: Compass,
     },
     {
       title: 'Popular Destinations',
       data: popularDestinations,
       renderItem: ({ item }) => <DestinationCard destination={item} />,
+      icon: MapPin,
     },
   ].filter((section) => section.data && section.data.length > 0)
 
   const renderContent = () => (
-    <>
+    <View className="flex-1">
+      {/* Header */}
+      <View className="bg-orange-500 px-6 pt-16 pb-8 rounded-b-[40px] shadow-lg">
+        <View className="flex-row items-center justify-between">
+          <View>
+            <Text className="text-white text-3xl font-bold">Explore</Text>
+            <Text className="text-white mt-2 text-lg">
+              Discover amazing adventures
+            </Text>
+          </View>
+          <View className="w-16 h-16 bg-white/20 rounded-2xl items-center justify-center">
+            <Mountain size={28} color="white" />
+          </View>
+        </View>
+      </View>
+
       <SearchBar />
+
       {showSearchResults ? (
-        <FlatList
-          data={searchResults}
-          renderItem={({ item }) => <TrekCard trek={item} />}
-          keyExtractor={(item) => item._id}
-          contentContainerStyle={{ padding: 16 }}
-          ListEmptyComponent={
-            <Text className="text-center text-gray-500">No results found</Text>
-          }
-        />
+        <View className="flex-1 px-6">
+          <Text className="text-2xl font-bold text-gray-800 mb-6">
+            Search Results ({searchResults.length})
+          </Text>
+          <FlatList
+            data={searchResults}
+            renderItem={({ item }) => <TrekCard trek={item} />}
+            keyExtractor={(item) => item._id}
+            showsVerticalScrollIndicator={false}
+            ListEmptyComponent={
+              <View className="items-center py-16">
+                <Search size={64} color="#d1d5db" />
+                <Text className="text-center text-gray-500 mt-6 text-xl font-semibold">
+                  No results found
+                </Text>
+                <Text className="text-center text-gray-400 mt-3 text-lg">
+                  Try searching with different keywords
+                </Text>
+              </View>
+            }
+          />
+        </View>
       ) : (
         sections.map((section) => (
           <View key={section.title}>
@@ -248,35 +360,54 @@ function ExploreScreen({ navigation, route }) {
               title: section.title,
               data: section.data,
               renderItem: section.renderItem,
+              icon: section.icon,
             })}
           </View>
         ))
       )}
-    </>
+    </View>
   )
 
   if (loading) {
     return (
-      <View className="flex-1 justify-center items-center">
-        <ActivityIndicator size="large" color="#f97316" />
-      </View>
+      <SafeAreaView className="flex-1 bg-gray-50">
+        <View className="flex-1 justify-center items-center">
+          <View className="bg-white rounded-3xl p-10 shadow-lg items-center">
+            <ActivityIndicator size="large" color="#ea580c" />
+            <Text className="text-gray-800 mt-6 font-semibold text-xl">
+              Discovering adventures...
+            </Text>
+          </View>
+        </View>
+      </SafeAreaView>
     )
   }
 
   if (error) {
     return (
-      <View className="flex-1 justify-center items-center">
-        <Text className="text-red-500">{error}</Text>
-      </View>
+      <SafeAreaView className="flex-1 bg-gray-50">
+        <View className="flex-1 justify-center items-center px-6">
+          <View className="bg-white rounded-3xl p-10 shadow-lg items-center w-full">
+            <Text className="text-red-500 text-xl font-bold mb-4">{error}</Text>
+            <TouchableOpacity
+              className="bg-orange-500 rounded-2xl px-8 py-4 shadow-lg"
+              onPress={fetchRecommendations}
+            >
+              <Text className="text-white font-bold text-lg">Try Again</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </SafeAreaView>
     )
   }
 
   return (
-    <SafeAreaView className="flex-1 bg-white">
+    <SafeAreaView className="flex-1 bg-gray-50">
       <FlatList
         data={[{ key: 'content' }]}
         renderItem={renderContent}
         keyExtractor={(item) => item.key}
+        showsVerticalScrollIndicator={false}
       />
     </SafeAreaView>
   )

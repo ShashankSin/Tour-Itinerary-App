@@ -41,7 +41,9 @@ const UserTypeScreen = ({ navigation }) => {
 
           <TouchableOpacity
             className="bg-gray-800 p-6 rounded-xl shadow-md"
-            onPress={() => navigation.navigate('AdminLogin')}
+            onPress={() =>
+              navigation.navigate('AdminLogin', { userType: 'admin' })
+            }
           >
             <Text className="text-white text-xl font-semibold text-center">
               Admin Login

@@ -3,9 +3,6 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack'
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs'
 import { Ionicons } from '@expo/vector-icons'
 import { useAuth } from '../context/AuthContext'
-import { BackHandler } from 'react-native'
-import { useEffect } from 'react'
-import { CommonActions } from '@react-navigation/native'
 
 // Auth Screens
 import LoginScreen from '../screens/auth/LoginScreen'
@@ -26,6 +23,8 @@ import ItineraryDetailScreen from '../screens/user/ItineraryDetailScreen'
 import BookingScreen from '../screens/user/BookingScreen'
 import PaymentScreen from '../screens/user/PaymentScreen'
 import BudgetPlannerScreen from '../screens/user/BudgetPlannerScreen'
+import MyBookingsScreen from '../screens/user/MyBookingsScreen'
+import BookingDetailScreen from '../screens/user/BookingDetailsScreen'
 
 // Company Screens
 import CompanyDashboardScreen from '../screens/company/CompanyDashboardScreen'
@@ -40,7 +39,6 @@ import AdminDashboardScreen from '../screens/admin/AdminDashboardScreen'
 import AdminCompaniesScreen from '../screens/admin/AdminCompaniesScreen'
 import AdminUsersScreen from '../screens/admin/AdminUsersScreen'
 import AdminItinerariesScreen from '../screens/admin/AdminItinerariesScreen'
-import BookingDetailScreen from '../screens/user/BookingDetailsScreen'
 
 const Stack = createNativeStackNavigator()
 const Tab = createBottomTabNavigator()
@@ -126,60 +124,21 @@ const AdminBottomTabs = () => {
   )
 }
 
-const RootNavigator = () => {
-  const { user, loading } = useAuth()
+const MainStack = () => {
+  const { user } = useAuth()
+  let TabComponent
 
-  if (loading) {
-    return null // Or a loading screen
+  if (user?.role === 'company') {
+    TabComponent = CompanyBottomTabs
+  } else if (user?.role === 'admin') {
+    TabComponent = AdminBottomTabs
+  } else {
+    TabComponent = UserBottomTabs
   }
 
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
-      {!user ? (
-        <Stack.Screen name="Auth" component={AuthNavigator} />
-      ) : (
-        <Stack.Screen name="Main" component={MainNavigator} />
-      )}
-    </Stack.Navigator>
-  )
-}
-
-// Auth Navigator
-const AuthNavigator = () => (
-  <Stack.Navigator screenOptions={{ headerShown: false }}>
-    <Stack.Screen name="UserType" component={UserTypeScreen} />
-    <Stack.Screen name="Login" component={LoginScreen} />
-    <Stack.Screen name="Signup" component={SignupScreen} />
-    <Stack.Screen name="CompanyLogin" component={CompanyLoginScreen} />
-    <Stack.Screen name="CompanySignup" component={CompanySignupScreen} />
-    <Stack.Screen name="AdminLogin" component={AdminLoginScreen} />
-    <Stack.Screen name="VerifyOtp" component={VerifyOtpScreen} />
-    <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
-  </Stack.Navigator>
-)
-
-// Main Stack Navigator
-const MainNavigator = () => {
-  const { user } = useAuth()
-
-  return (
-    <Stack.Navigator
-      screenOptions={{
-        headerShown: false,
-        gestureEnabled: true,
-        gestureDirection: 'horizontal',
-      }}
-    >
-      <Stack.Screen
-        name="MainTabs"
-        component={
-          user?.role === 'company'
-            ? CompanyBottomTabs
-            : user?.role === 'admin'
-            ? AdminBottomTabs
-            : UserBottomTabs
-        }
-      />
+      <Stack.Screen name="TabNavigator" component={TabComponent} />
       <Stack.Screen name="ItineraryDetail" component={ItineraryDetailScreen} />
       <Stack.Screen name="Booking" component={BookingScreen} />
       <Stack.Screen name="Payment" component={PaymentScreen} />
@@ -187,6 +146,40 @@ const MainNavigator = () => {
       <Stack.Screen name="CreateItinerary" component={CreateItineraryScreen} />
       <Stack.Screen name="EditItinerary" component={EditItineraryScreen} />
       <Stack.Screen name="BookingDetail" component={BookingDetailScreen} />
+      <Stack.Screen name="MyBookings" component={MyBookingsScreen} />
+    </Stack.Navigator>
+  )
+}
+
+const AuthStack = () => {
+  return (
+    <Stack.Navigator screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="UserType" component={UserTypeScreen} />
+      <Stack.Screen name="Login" component={LoginScreen} />
+      <Stack.Screen name="Signup" component={SignupScreen} />
+      <Stack.Screen name="CompanyLogin" component={CompanyLoginScreen} />
+      <Stack.Screen name="CompanySignup" component={CompanySignupScreen} />
+      <Stack.Screen name="AdminLogin" component={AdminLoginScreen} />
+      <Stack.Screen name="VerifyOtp" component={VerifyOtpScreen} />
+      <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
+    </Stack.Navigator>
+  )
+}
+
+const RootNavigator = () => {
+  const { user, loading } = useAuth()
+
+  if (loading) {
+    return null
+  }
+
+  return (
+    <Stack.Navigator screenOptions={{ headerShown: false }}>
+      {!user ? (
+        <Stack.Screen name="Auth" component={AuthStack} />
+      ) : (
+        <Stack.Screen name="Main" component={MainStack} />
+      )}
     </Stack.Navigator>
   )
 }

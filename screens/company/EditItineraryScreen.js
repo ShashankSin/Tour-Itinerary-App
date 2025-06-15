@@ -20,6 +20,10 @@ import * as ImagePicker from 'expo-image-picker'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { jwtDecode } from 'jwt-decode'
 import { useRoute } from '@react-navigation/native'
+import axios from 'axios'
+import { SafeAreaView } from 'react-native-safe-area-view'
+import { AnimatedHeader } from '../../components/AnimatedHeader'
+import { Plus, X, Check } from 'lucide-react'
 
 const EditItineraryScreen = ({ route, navigation }) => {
   const { trekId } = route.params
@@ -201,12 +205,12 @@ const EditItineraryScreen = ({ route, navigation }) => {
       return
     }
 
-    setSaving(true)
+    setLoading(true)
     try {
       const token = await AsyncStorage.getItem('token')
       if (!token) {
         Alert.alert('Error', 'User not authenticated')
-        setSaving(false)
+        setLoading(false)
         return
       }
 
@@ -225,33 +229,33 @@ const EditItineraryScreen = ({ route, navigation }) => {
         route: trekForm.route,
       }
 
-      const response = await fetch(
-        `http://10.0.2.2:5000/api/trek/update/${trekId}`,
+      const response = await axios.put(
+        `http://192.168.1.69:5000/api/trek/update/${trekId}`,
+        normalizedData,
         {
-          method: 'PUT',
           headers: {
             'Content-Type': 'application/json',
             Authorization: `Bearer ${token}`,
           },
-          body: JSON.stringify(normalizedData),
         }
       )
 
-      const data = await response.json()
-      console.log('🔄 Update response:', data)
-
-      if (response.ok && data.success) {
+      if (response.data.success) {
         Alert.alert('Success', 'Trek updated successfully!', [
           { text: 'OK', onPress: () => navigation.goBack() },
         ])
       } else {
-        Alert.alert('Error', data.message || 'Failed to update trek')
+        Alert.alert('Error', response.data.message || 'Failed to update trek')
       }
     } catch (error) {
-      console.error('❌ Error updating trek:', error)
-      Alert.alert('Error', 'Failed to update trek')
+      console.error('Error updating trek:', error)
+      Alert.alert(
+        'Error',
+        error.response?.data?.message ||
+          'Failed to update trek. Please check your connection.'
+      )
     } finally {
-      setSaving(false)
+      setLoading(false)
     }
   }
 
@@ -355,40 +359,32 @@ const EditItineraryScreen = ({ route, navigation }) => {
   const pickImage = async () => {
     try {
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: [ImagePicker.MediaType.Images],
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: true,
         aspect: [16, 9],
-        quality: 1,
+        quality: 0.8,
+        allowsMultipleSelection: true,
+        selectionLimit: 5,
       })
 
       if (!result.canceled) {
-        setTrekForm({
-          ...trekForm,
-          images: [...trekForm.images, result.assets[0].uri],
-        })
-
-        // Clear image error if it exists
-        if (errors.images) {
-          const newErrors = { ...errors }
-          delete newErrors.images
-          setErrors(newErrors)
-        }
+        const newImages = result.assets.map((asset) => asset.uri)
+        setTrekForm((prev) => ({
+          ...prev,
+          images: [...(prev.images || []), ...newImages],
+        }))
       }
     } catch (error) {
       console.error('Error picking image:', error)
-      Alert.alert('Error', 'Failed to pick image')
+      Alert.alert('Error', 'Failed to pick image. Please try again.')
     }
   }
 
   const removeImage = (index) => {
-    if (trekForm.images.length <= 1) {
-      Alert.alert('Error', 'You must have at least one image')
-      return
-    }
-
-    const updated = [...trekForm.images]
-    updated.splice(index, 1)
-    setTrekForm({ ...trekForm, images: updated })
+    setTrekForm((prev) => ({
+      ...prev,
+      images: prev.images.filter((_, i) => i !== index),
+    }))
   }
 
   const previewImageModal = (imageUri) => {
@@ -408,198 +404,245 @@ const EditItineraryScreen = ({ route, navigation }) => {
     switch (formStep) {
       case 1:
         return (
-          <View style={styles.formContainer}>
-            <Text style={styles.formTitle}>Basic Information</Text>
+          <ScrollView className="flex-1 p-4">
+            <View className="space-y-6">
+              {/* Basic Information Section */}
+              <View className="bg-white rounded-2xl p-4 shadow-sm space-y-4">
+                <Text className="text-xl font-bold text-gray-800">
+                  Basic Information
+                </Text>
 
-            <Text style={styles.inputLabel}>
-              Title <Text style={styles.requiredStar}>*</Text>
-            </Text>
-            <TextInput
-              style={[styles.input, errors.title && styles.inputError]}
-              placeholder="Trek title"
-              value={trekForm.title}
-              onChangeText={(text) => {
-                setTrekForm({ ...trekForm, title: text })
-                if (errors.title) {
-                  const newErrors = { ...errors }
-                  delete newErrors.title
-                  setErrors(newErrors)
-                }
-              }}
-            />
-            {errors.title && (
-              <Text style={styles.errorText}>{errors.title}</Text>
-            )}
+                {/* Images Section */}
+                <View className="space-y-2">
+                  <Text className="text-base font-semibold text-gray-700">
+                    Trek Images
+                  </Text>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                    <View className="flex-row space-x-3">
+                      {trekForm.images &&
+                        trekForm.images.map((image, index) => (
+                          <View key={index} className="relative">
+                            <TouchableOpacity
+                              onPress={() => previewImageModal(image)}
+                              className="w-32 h-32 rounded-xl overflow-hidden border border-gray-200"
+                            >
+                              <Image
+                                source={{ uri: image }}
+                                className="w-full h-full"
+                                resizeMode="cover"
+                              />
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                              onPress={() => removeImage(index)}
+                              className="absolute -top-2 -right-2 bg-red-500 rounded-full p-1"
+                            >
+                              <X size={16} color="white" />
+                            </TouchableOpacity>
+                          </View>
+                        ))}
+                      {(!trekForm.images || trekForm.images.length < 5) && (
+                        <TouchableOpacity
+                          onPress={pickImage}
+                          className="w-32 h-32 rounded-xl border-2 border-dashed border-gray-300 items-center justify-center bg-gray-50"
+                        >
+                          <Plus size={24} color="#9ca3af" />
+                          <Text className="text-sm text-gray-500 mt-1">
+                            Add Image
+                          </Text>
+                        </TouchableOpacity>
+                      )}
+                    </View>
+                  </ScrollView>
+                </View>
 
-            <Text style={styles.inputLabel}>
-              Location <Text style={styles.requiredStar}>*</Text>
-            </Text>
-            <TextInput
-              style={[styles.input, errors.location && styles.inputError]}
-              placeholder="Trek location"
-              value={trekForm.location}
-              onChangeText={(text) => {
-                setTrekForm({ ...trekForm, location: text })
-                if (errors.location) {
-                  const newErrors = { ...errors }
-                  delete newErrors.location
-                  setErrors(newErrors)
-                }
-              }}
-            />
-            {errors.location && (
-              <Text style={styles.errorText}>{errors.location}</Text>
-            )}
-
-            <Text style={styles.inputLabel}>
-              Description <Text style={styles.requiredStar}>*</Text>
-            </Text>
-            <TextInput
-              style={[
-                styles.input,
-                styles.textArea,
-                errors.description && styles.inputError,
-              ]}
-              placeholder="Detailed description of the trek"
-              multiline
-              numberOfLines={4}
-              value={trekForm.description}
-              onChangeText={(text) => {
-                setTrekForm({ ...trekForm, description: text })
-                if (errors.description) {
-                  const newErrors = { ...errors }
-                  delete newErrors.description
-                  setErrors(newErrors)
-                }
-              }}
-            />
-            {errors.description && (
-              <Text style={styles.errorText}>{errors.description}</Text>
-            )}
-
-            <View style={styles.rowInputs}>
-              <View style={styles.halfInput}>
+                {/* Other form fields */}
                 <Text style={styles.inputLabel}>
-                  Duration (days) <Text style={styles.requiredStar}>*</Text>
+                  Title <Text style={styles.requiredStar}>*</Text>
                 </Text>
                 <TextInput
-                  style={[styles.input, errors.duration && styles.inputError]}
-                  placeholder="Duration"
-                  keyboardType="numeric"
-                  value={trekForm.duration}
+                  style={[styles.input, errors.title && styles.inputError]}
+                  placeholder="Trek title"
+                  value={trekForm.title}
                   onChangeText={(text) => {
-                    setTrekForm({ ...trekForm, duration: text })
-                    if (errors.duration) {
+                    setTrekForm({ ...trekForm, title: text })
+                    if (errors.title) {
                       const newErrors = { ...errors }
-                      delete newErrors.duration
+                      delete newErrors.title
                       setErrors(newErrors)
                     }
                   }}
                 />
-                {errors.duration && (
-                  <Text style={styles.errorText}>{errors.duration}</Text>
+                {errors.title && (
+                  <Text style={styles.errorText}>{errors.title}</Text>
                 )}
-              </View>
 
-              <View style={styles.halfInput}>
                 <Text style={styles.inputLabel}>
-                  Price ($) <Text style={styles.requiredStar}>*</Text>
+                  Location <Text style={styles.requiredStar}>*</Text>
                 </Text>
                 <TextInput
-                  style={[styles.input, errors.price && styles.inputError]}
-                  placeholder="Price"
-                  keyboardType="numeric"
-                  value={trekForm.price}
+                  style={[styles.input, errors.location && styles.inputError]}
+                  placeholder="Trek location"
+                  value={trekForm.location}
                   onChangeText={(text) => {
-                    setTrekForm({ ...trekForm, price: text })
-                    if (errors.price) {
+                    setTrekForm({ ...trekForm, location: text })
+                    if (errors.location) {
                       const newErrors = { ...errors }
-                      delete newErrors.price
+                      delete newErrors.location
                       setErrors(newErrors)
                     }
                   }}
                 />
-                {errors.price && (
-                  <Text style={styles.errorText}>{errors.price}</Text>
+                {errors.location && (
+                  <Text style={styles.errorText}>{errors.location}</Text>
                 )}
+
+                <Text style={styles.inputLabel}>
+                  Description <Text style={styles.requiredStar}>*</Text>
+                </Text>
+                <TextInput
+                  style={[
+                    styles.input,
+                    styles.textArea,
+                    errors.description && styles.inputError,
+                  ]}
+                  placeholder="Detailed description of the trek"
+                  multiline
+                  numberOfLines={4}
+                  value={trekForm.description}
+                  onChangeText={(text) => {
+                    setTrekForm({ ...trekForm, description: text })
+                    if (errors.description) {
+                      const newErrors = { ...errors }
+                      delete newErrors.description
+                      setErrors(newErrors)
+                    }
+                  }}
+                />
+                {errors.description && (
+                  <Text style={styles.errorText}>{errors.description}</Text>
+                )}
+
+                <View style={styles.rowInputs}>
+                  <View style={styles.halfInput}>
+                    <Text style={styles.inputLabel}>
+                      Duration (days) <Text style={styles.requiredStar}>*</Text>
+                    </Text>
+                    <TextInput
+                      style={[
+                        styles.input,
+                        errors.duration && styles.inputError,
+                      ]}
+                      placeholder="Duration"
+                      keyboardType="numeric"
+                      value={trekForm.duration}
+                      onChangeText={(text) => {
+                        setTrekForm({ ...trekForm, duration: text })
+                        if (errors.duration) {
+                          const newErrors = { ...errors }
+                          delete newErrors.duration
+                          setErrors(newErrors)
+                        }
+                      }}
+                    />
+                    {errors.duration && (
+                      <Text style={styles.errorText}>{errors.duration}</Text>
+                    )}
+                  </View>
+
+                  <View style={styles.halfInput}>
+                    <Text style={styles.inputLabel}>
+                      Price ($) <Text style={styles.requiredStar}>*</Text>
+                    </Text>
+                    <TextInput
+                      style={[styles.input, errors.price && styles.inputError]}
+                      placeholder="Price"
+                      keyboardType="numeric"
+                      value={trekForm.price}
+                      onChangeText={(text) => {
+                        setTrekForm({ ...trekForm, price: text })
+                        if (errors.price) {
+                          const newErrors = { ...errors }
+                          delete newErrors.price
+                          setErrors(newErrors)
+                        }
+                      }}
+                    />
+                    {errors.price && (
+                      <Text style={styles.errorText}>{errors.price}</Text>
+                    )}
+                  </View>
+                </View>
+
+                <View style={{ zIndex: 3000, marginBottom: 16 }}>
+                  <Text style={styles.inputLabel}>
+                    Difficulty <Text style={styles.requiredStar}>*</Text>
+                  </Text>
+                  <DropDownPicker
+                    open={difficultyOpen}
+                    value={trekForm.difficulty}
+                    items={difficultyOptions}
+                    setOpen={setDifficultyOpen}
+                    setValue={(callback) => {
+                      setTrekForm((prev) => ({
+                        ...prev,
+                        difficulty: callback(prev.difficulty),
+                      }))
+                      if (errors.difficulty) {
+                        const newErrors = { ...errors }
+                        delete newErrors.difficulty
+                        setErrors(newErrors)
+                      }
+                    }}
+                    style={[
+                      styles.dropdown,
+                      errors.difficulty && styles.inputError,
+                    ]}
+                    dropDownContainerStyle={styles.dropdownContainer}
+                    zIndex={3000}
+                    zIndexInverse={1000}
+                    placeholder="Select difficulty"
+                  />
+                  {errors.difficulty && (
+                    <Text style={styles.errorText}>{errors.difficulty}</Text>
+                  )}
+                </View>
+
+                <View style={{ zIndex: 2000, marginBottom: 16 }}>
+                  <Text style={styles.inputLabel}>
+                    Category <Text style={styles.requiredStar}>*</Text>
+                  </Text>
+                  <DropDownPicker
+                    open={categoryOpen}
+                    value={trekForm.category}
+                    items={categoryOptions}
+                    setOpen={setCategoryOpen}
+                    setValue={(callback) => {
+                      setTrekForm((prev) => ({
+                        ...prev,
+                        category: callback(prev.category),
+                      }))
+                      if (errors.category) {
+                        const newErrors = { ...errors }
+                        delete newErrors.category
+                        setErrors(newErrors)
+                      }
+                    }}
+                    style={[
+                      styles.dropdown,
+                      errors.category && styles.inputError,
+                    ]}
+                    dropDownContainerStyle={styles.dropdownContainer}
+                    zIndex={2000}
+                    zIndexInverse={2000}
+                    placeholder="Select category"
+                  />
+                  {errors.category && (
+                    <Text style={styles.errorText}>{errors.category}</Text>
+                  )}
+                </View>
               </View>
             </View>
-
-            <View style={{ zIndex: 3000, marginBottom: 16 }}>
-              <Text style={styles.inputLabel}>
-                Difficulty <Text style={styles.requiredStar}>*</Text>
-              </Text>
-              <DropDownPicker
-                open={difficultyOpen}
-                value={trekForm.difficulty}
-                items={difficultyOptions}
-                setOpen={setDifficultyOpen}
-                setValue={(callback) => {
-                  setTrekForm((prev) => ({
-                    ...prev,
-                    difficulty: callback(prev.difficulty),
-                  }))
-                  if (errors.difficulty) {
-                    const newErrors = { ...errors }
-                    delete newErrors.difficulty
-                    setErrors(newErrors)
-                  }
-                }}
-                style={[
-                  styles.dropdown,
-                  errors.difficulty && styles.inputError,
-                ]}
-                dropDownContainerStyle={styles.dropdownContainer}
-                zIndex={3000}
-                zIndexInverse={1000}
-                placeholder="Select difficulty"
-              />
-              {errors.difficulty && (
-                <Text style={styles.errorText}>{errors.difficulty}</Text>
-              )}
-            </View>
-
-            <View style={{ zIndex: 2000, marginBottom: 16 }}>
-              <Text style={styles.inputLabel}>
-                Category <Text style={styles.requiredStar}>*</Text>
-              </Text>
-              <DropDownPicker
-                open={categoryOpen}
-                value={trekForm.category}
-                items={categoryOptions}
-                setOpen={setCategoryOpen}
-                setValue={(callback) => {
-                  setTrekForm((prev) => ({
-                    ...prev,
-                    category: callback(prev.category),
-                  }))
-                  if (errors.category) {
-                    const newErrors = { ...errors }
-                    delete newErrors.category
-                    setErrors(newErrors)
-                  }
-                }}
-                style={[styles.dropdown, errors.category && styles.inputError]}
-                dropDownContainerStyle={styles.dropdownContainer}
-                zIndex={2000}
-                zIndexInverse={2000}
-                placeholder="Select category"
-              />
-              {errors.category && (
-                <Text style={styles.errorText}>{errors.category}</Text>
-              )}
-            </View>
-
-            <TouchableOpacity
-              style={styles.nextButton}
-              onPress={handleNextStep}
-            >
-              <Text style={styles.nextButtonText}>
-                Next: Images & Itinerary
-              </Text>
-              <Ionicons name="arrow-forward" size={16} color="#fff" />
-            </TouchableOpacity>
-          </View>
+          </ScrollView>
         )
 
       case 2:
@@ -912,6 +955,30 @@ const EditItineraryScreen = ({ route, navigation }) => {
     }
   }
 
+  const ImagePreviewModal = () => (
+    <Modal
+      visible={imagePreviewVisible}
+      transparent={true}
+      onRequestClose={() => setImagePreviewVisible(false)}
+    >
+      <View className="flex-1 bg-black/80 justify-center items-center">
+        <TouchableOpacity
+          onPress={() => setImagePreviewVisible(false)}
+          className="absolute top-10 right-6 z-10"
+        >
+          <X size={24} color="white" />
+        </TouchableOpacity>
+        {previewImage && (
+          <Image
+            source={{ uri: previewImage }}
+            className="w-full h-[60%]"
+            resizeMode="contain"
+          />
+        )}
+      </View>
+    </Modal>
+  )
+
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
@@ -922,143 +989,76 @@ const EditItineraryScreen = ({ route, navigation }) => {
   }
 
   return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      style={styles.container}
-    >
-      <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.backButtonHeader}
-          onPress={() => {
-            Alert.alert(
-              'Confirm Exit',
-              'Are you sure you want to exit? Any unsaved changes will be lost.',
-              [
-                { text: 'Cancel', style: 'cancel' },
-                { text: 'Exit', onPress: () => navigation.goBack() },
-              ]
-            )
-          }}
-        >
-          <Ionicons name="arrow-back" size={24} color="#fff" />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Edit Trek</Text>
-        <View style={{ width: 24 }} />
-      </View>
+    <SafeAreaView className="flex-1 bg-gray-50">
+      <AnimatedHeader
+        title={`Edit ${trekForm.title || 'Trek'}`}
+        scrollY={scrollY}
+        navigation={navigation}
+      />
 
-      <View style={styles.formStepsContainer}>
-        <View style={styles.formSteps}>
-          <TouchableOpacity
-            style={[styles.formStep, formStep >= 1 && styles.activeFormStep]}
-            onPress={() => formStep > 1 && setFormStep(1)}
-          >
-            <Text
-              style={[
-                styles.formStepText,
-                formStep >= 1 && styles.activeFormStepText,
-              ]}
-            >
-              1
-            </Text>
-          </TouchableOpacity>
-          <View
-            style={[
-              styles.formStepConnector,
-              formStep >= 2 && styles.activeFormStepConnector,
-            ]}
-          />
-          <TouchableOpacity
-            style={[styles.formStep, formStep >= 2 && styles.activeFormStep]}
-            onPress={() => formStep > 2 && setFormStep(2)}
-          >
-            <Text
-              style={[
-                styles.formStepText,
-                formStep >= 2 && styles.activeFormStepText,
-              ]}
-            >
-              2
-            </Text>
-          </TouchableOpacity>
-          <View
-            style={[
-              styles.formStepConnector,
-              formStep >= 3 && styles.activeFormStepConnector,
-            ]}
-          />
-          <TouchableOpacity
-            style={[styles.formStep, formStep >= 3 && styles.activeFormStep]}
-            onPress={() => formStep > 3 && setFormStep(3)}
-          >
-            <Text
-              style={[
-                styles.formStepText,
-                formStep >= 3 && styles.activeFormStepText,
-              ]}
-            >
-              3
-            </Text>
-          </TouchableOpacity>
-        </View>
-        <View style={styles.formStepLabels}>
-          <Text
-            style={[
-              styles.formStepLabel,
-              formStep === 1 && styles.activeFormStepLabel,
-            ]}
-          >
-            Basic Info
-          </Text>
-          <Text
-            style={[
-              styles.formStepLabel,
-              formStep === 2 && styles.activeFormStepLabel,
-            ]}
-          >
-            Images & Itinerary
-          </Text>
-          <Text
-            style={[
-              styles.formStepLabel,
-              formStep === 3 && styles.activeFormStepLabel,
-            ]}
-          >
-            Inclusions & Route
-          </Text>
+      {/* Progress Steps */}
+      <View className="px-4 py-2 bg-white border-b border-gray-200">
+        <View className="flex-row justify-between items-center">
+          {steps.map((step, index) => (
+            <View key={index} className="items-center flex-1">
+              <View
+                className={`w-8 h-8 rounded-full items-center justify-center ${
+                  currentStep > index
+                    ? 'bg-green-500'
+                    : currentStep === index
+                    ? 'bg-blue-500'
+                    : 'bg-gray-300'
+                }`}
+              >
+                {currentStep > index ? (
+                  <Check size={16} color="white" />
+                ) : (
+                  <Text className="text-white font-medium">{index + 1}</Text>
+                )}
+              </View>
+              <Text className="text-xs text-gray-600 mt-1">{step}</Text>
+            </View>
+          ))}
         </View>
       </View>
 
-      <ScrollView
-        style={styles.scrollView}
-        contentContainerStyle={styles.scrollViewContent}
-        showsVerticalScrollIndicator={false}
-      >
-        {renderFormStep()}
-      </ScrollView>
+      {/* Form Content */}
+      {loading ? (
+        <View className="flex-1 justify-center items-center">
+          <ActivityIndicator size="large" color="#3b82f6" />
+          <Text className="text-gray-600 mt-4">Updating trek...</Text>
+        </View>
+      ) : (
+        renderFormStep()
+      )}
 
-      <Modal
-        visible={imagePreviewVisible}
-        transparent={true}
-        animationType="fade"
-        onRequestClose={() => setImagePreviewVisible(false)}
-      >
-        <View style={styles.modalContainer}>
-          <View style={styles.modalContent}>
-            <Image
-              source={{ uri: previewImage }}
-              style={styles.previewImage}
-              resizeMode="contain"
-            />
+      {/* Image Preview Modal */}
+      <ImagePreviewModal />
+
+      {/* Navigation Buttons */}
+      <View className="p-4 bg-white border-t border-gray-200">
+        <View className="flex-row justify-between">
+          {currentStep > 1 && (
             <TouchableOpacity
-              style={styles.closeModalButton}
-              onPress={() => setImagePreviewVisible(false)}
+              onPress={() => setCurrentStep(currentStep - 1)}
+              className="px-6 py-3 rounded-xl bg-gray-100"
             >
-              <Ionicons name="close-circle" size={30} color="#fff" />
+              <Text className="text-gray-700 font-semibold">Previous</Text>
             </TouchableOpacity>
-          </View>
+          )}
+          <TouchableOpacity
+            onPress={
+              currentStep < steps.length ? handleNextStep : handleUpdateTrek
+            }
+            className="px-6 py-3 rounded-xl bg-blue-500 ml-auto"
+          >
+            <Text className="text-white font-semibold">
+              {currentStep < steps.length ? 'Next' : 'Update Trek'}
+            </Text>
+          </TouchableOpacity>
         </View>
-      </Modal>
-    </KeyboardAvoidingView>
+      </View>
+    </SafeAreaView>
   )
 }
 

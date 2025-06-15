@@ -8,18 +8,24 @@ import {
   ActivityIndicator,
   FlatList,
   TouchableOpacity,
+  Alert,
 } from 'react-native'
+import { SafeAreaView } from 'react-native-safe-area-context'
 import { useAuth } from '../../context/AuthContext'
-import {
-  getRecommendedTreks,
-  getTrendingTreks,
-  getPopularDestinations,
-} from '../../services/recommendationService'
+import AsyncStorage from '@react-native-async-storage/async-storage'
+import axios from 'axios'
 import TrekCard from '../../components/TrekCard'
-import { Mountain, TrendingUp, MapPin, Compass } from 'lucide-react-native'
+import {
+  Mountain,
+  TrendingUp,
+  MapPin,
+  Compass,
+  Sun,
+  Star,
+} from 'lucide-react-native'
 
 const HomeScreen = ({ navigation }) => {
-  const { user } = useAuth()
+  const { user, logout } = useAuth()
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [recommendations, setRecommendations] = useState([])
@@ -27,23 +33,45 @@ const HomeScreen = ({ navigation }) => {
   const [popularDestinations, setPopularDestinations] = useState([])
 
   const fetchData = async () => {
-    if (!user || !user.token) {
-      setLoading(false)
-      return
-    }
-
     try {
-      const [recommendedData, trendingData, popularData] = await Promise.all([
-        getRecommendedTreks(user.id, user.token),
-        getTrendingTreks(user.token),
-        getPopularDestinations(user.token),
-      ])
+      const token = await AsyncStorage.getItem('token')
+      if (!token || !user) {
+        setLoading(false)
+        return
+      }
 
-      setRecommendations(recommendedData || [])
-      setTrendingTreks(trendingData || [])
-      setPopularDestinations(popularData || [])
+      // Fetch all treks for now - we'll filter them client-side
+      const response = await axios.get(
+        'http://192.168.1.69:5000/api/trek/allitinerary',
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      )
+
+      if (response.data.success) {
+        const allTreks = response.data.treks || []
+
+        // For now, just split the treks into different categories randomly
+        const shuffled = [...allTreks].sort(() => 0.5 - Math.random())
+
+        setRecommendations(shuffled.slice(0, 5))
+        setTrendingTreks(shuffled.slice(5, 10))
+        setPopularDestinations(shuffled.slice(10, 15))
+      }
     } catch (error) {
       console.error('Error fetching home data:', error)
+      if (error.response?.status === 401) {
+        Alert.alert('Session Expired', 'Please log in again.', [
+          {
+            text: 'OK',
+            onPress: () => logout(),
+          },
+        ])
+      } else {
+        Alert.alert('Error', 'Failed to load data. Please try again.')
+      }
       setRecommendations([])
       setTrendingTreks([])
       setPopularDestinations([])
@@ -64,33 +92,42 @@ const HomeScreen = ({ navigation }) => {
 
   if (loading) {
     return (
-      <View className="flex-1 justify-center items-center bg-gradient-to-br from-orange-50 to-red-50">
-        <View className="bg-white rounded-2xl p-8 shadow-lg items-center">
-          <ActivityIndicator size="large" color="#ea580c" />
-          <Text className="text-gray-600 mt-4 font-medium">
-            Loading adventures...
-          </Text>
+      <SafeAreaView className="flex-1 bg-gray-50">
+        <View className="flex-1 justify-center items-center">
+          <View className="bg-white rounded-3xl p-8 shadow-lg items-center">
+            <ActivityIndicator size="large" color="#ea580c" />
+            <Text className="text-gray-800 mt-4 font-semibold text-lg">
+              Loading adventures...
+            </Text>
+          </View>
         </View>
-      </View>
+      </SafeAreaView>
     )
   }
 
   if (!user) {
     return (
-      <View className="flex-1 justify-center items-center bg-gradient-to-br from-orange-50 to-red-50">
-        <View className="bg-white rounded-2xl p-8 shadow-lg items-center mx-6">
-          <Mountain size={48} color="#ea580c" />
-          <Text className="text-xl font-bold text-gray-800 mt-4">
-            Welcome to TrekApp
-          </Text>
-          <Text className="text-gray-600 text-center mt-2">
-            Please log in to discover amazing treks
-          </Text>
-          <TouchableOpacity className="bg-orange-500 rounded-xl px-6 py-3 mt-6">
-            <Text className="text-white font-semibold">Get Started</Text>
-          </TouchableOpacity>
+      <SafeAreaView className="flex-1 bg-gray-50">
+        <View className="flex-1 justify-center items-center px-6">
+          <View className="bg-white rounded-3xl p-8 shadow-lg items-center w-full">
+            <Mountain size={64} color="#ea580c" />
+            <Text className="text-2xl font-bold text-gray-800 mt-4">
+              Welcome to TrekApp
+            </Text>
+            <Text className="text-gray-600 text-center mt-2 text-lg">
+              Please log in to discover amazing treks
+            </Text>
+            <TouchableOpacity
+              className="bg-orange-500 rounded-2xl px-8 py-4 mt-6 shadow-lg"
+              onPress={() =>
+                navigation.navigate('Auth', { screen: 'UserType' })
+              }
+            >
+              <Text className="text-white font-bold text-lg">Get Started</Text>
+            </TouchableOpacity>
+          </View>
         </View>
-      </View>
+      </SafeAreaView>
     )
   }
 
@@ -108,19 +145,23 @@ const HomeScreen = ({ navigation }) => {
     )
   }
 
+  const SectionHeader = ({ section, onSeeAll, icon: Icon }) => (
+    <View className="flex-row items-center justify-between px-6 mb-4">
+      <View className="flex-row items-center">
+        <View className="w-12 h-12 bg-orange-500 rounded-2xl items-center justify-center mr-3 shadow-lg">
+          <Icon size={22} color="white" />
+        </View>
+        <Text className="text-xl font-bold text-gray-800">{section}</Text>
+      </View>
+      <TouchableOpacity onPress={onSeeAll}>
+        <Text className="text-orange-600 font-semibold text-lg">See All</Text>
+      </TouchableOpacity>
+    </View>
+  )
+
   const renderSection = ({ section, data, onSeeAll, icon: Icon }) => (
     <View className="mb-8">
-      <View className="flex-row items-center justify-between px-6 mb-4">
-        <View className="flex-row items-center">
-          <View className="w-10 h-10 bg-orange-100 rounded-xl items-center justify-center mr-3">
-            <Icon size={20} color="#ea580c" />
-          </View>
-          <Text className="text-xl font-bold text-gray-800">{section}</Text>
-        </View>
-        <TouchableOpacity onPress={onSeeAll}>
-          <Text className="text-orange-600 font-medium">See All</Text>
-        </TouchableOpacity>
-      </View>
+      <SectionHeader section={section} onSeeAll={onSeeAll} icon={Icon} />
       <FlatList
         data={data}
         renderItem={renderTrekCard}
@@ -156,37 +197,54 @@ const HomeScreen = ({ navigation }) => {
   const renderContent = () => (
     <View className="flex-1">
       {/* Header */}
-      <View className="bg-gradient-to-r from-orange-500 to-red-600 px-6 pt-12 pb-8 rounded-b-3xl">
+      <View className="bg-orange-500 px-6 pt-16 pb-8 rounded-b-[40px] shadow-lg">
         <View className="flex-row items-center justify-between">
           <View className="flex-1">
-            <Text className="text-white text-lg opacity-90">Good morning!</Text>
-            <Text className="text-white text-2xl font-bold mt-1">
+            <View className="flex-row items-center mb-2">
+              <Sun size={24} color="white" />
+              <Text className="text-white text-lg ml-2 font-medium">
+                Good morning!
+              </Text>
+            </View>
+            <Text className="text-white text-3xl font-bold mt-1">
               {user?.name || 'Traveler'}
             </Text>
-            <Text className="text-white opacity-90 mt-2">
+            <Text className="text-white mt-2 text-lg">
               Ready for your next adventure?
             </Text>
           </View>
-          <View className="w-12 h-12 bg-white/20 rounded-full items-center justify-center">
-            <Mountain size={24} color="white" />
+          <View className="w-16 h-16 bg-white/20 rounded-2xl items-center justify-center">
+            <Mountain size={28} color="white" />
           </View>
         </View>
       </View>
 
       {/* Quick Stats */}
-      <View className="flex-row mx-6 -mt-6 mb-6">
-        <View className="flex-1 bg-white rounded-2xl p-4 mr-2 shadow-sm">
-          <Text className="text-2xl font-bold text-gray-800">12</Text>
-          <Text className="text-gray-600 text-sm">Treks Completed</Text>
+      <View className="flex-row mx-6 -mt-8 mb-6">
+        <View className="flex-1 bg-white rounded-3xl p-5 mr-3 shadow-lg border border-gray-100">
+          <View className="flex-row items-center mb-2">
+            <Star size={20} color="#ea580c" />
+            <Text className="text-gray-700 text-sm ml-2 font-medium">
+              Completed
+            </Text>
+          </View>
+          <Text className="text-3xl font-bold text-gray-800">12</Text>
+          <Text className="text-gray-600 text-sm">Treks</Text>
         </View>
-        <View className="flex-1 bg-white rounded-2xl p-4 ml-2 shadow-sm">
-          <Text className="text-2xl font-bold text-gray-800">4.8</Text>
-          <Text className="text-gray-600 text-sm">Average Rating</Text>
+        <View className="flex-1 bg-white rounded-3xl p-5 ml-3 shadow-lg border border-gray-100">
+          <View className="flex-row items-center mb-2">
+            <Mountain size={20} color="#f97316" />
+            <Text className="text-gray-700 text-sm ml-2 font-medium">
+              Rating
+            </Text>
+          </View>
+          <Text className="text-3xl font-bold text-gray-800">4.8</Text>
+          <Text className="text-gray-600 text-sm">Average</Text>
         </View>
       </View>
 
       {/* Sections */}
-      {sections.map((section, index) => (
+      {sections.map((section) => (
         <View key={section.title}>
           {renderSection({
             section: section.title,
@@ -200,7 +258,7 @@ const HomeScreen = ({ navigation }) => {
   )
 
   return (
-    <View className="flex-1 bg-gray-50">
+    <SafeAreaView className="flex-1 bg-gray-50">
       <FlatList
         data={[{ key: 'content' }]}
         renderItem={renderContent}
@@ -209,7 +267,7 @@ const HomeScreen = ({ navigation }) => {
         }
         showsVerticalScrollIndicator={false}
       />
-    </View>
+    </SafeAreaView>
   )
 }
 

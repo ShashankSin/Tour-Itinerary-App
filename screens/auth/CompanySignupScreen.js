@@ -1,16 +1,18 @@
 'use client'
 
+import { useState } from 'react'
 import {
   View,
   Text,
   TextInput,
   TouchableOpacity,
-  Alert,
   ScrollView,
+  ActivityIndicator,
+  Alert,
+  StyleSheet,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { StatusBar } from 'expo-status-bar'
-import { useState } from 'react'
 import axios from 'axios'
 import {
   Building2,
@@ -55,7 +57,6 @@ const CompanySignupScreen = ({ navigation }) => {
 
       const userId =
         response.data.userId || response.data.user?._id || response.data._id
-
       const companyId = response.data.companyId || response.data._id
 
       navigation.navigate('VerifyOtp', {
@@ -80,21 +81,24 @@ const CompanySignupScreen = ({ navigation }) => {
     placeholder,
     value,
     onChangeText,
+    required = false,
     ...props
   }) => (
-    <View className="mb-4">
-      <Text className="text-gray-700 font-medium mb-2">{label}</Text>
-      <View className="flex-row items-center bg-gray-50 border border-gray-200 rounded-xl px-4 py-4 focus:border-orange-500">
-        <Icon size={20} color="#6B7280" />
+    <View style={styles.inputContainer}>
+      <Text style={styles.inputLabel}>
+        {label} {required && <Text style={styles.requiredStar}>*</Text>}
+      </Text>
+      <View style={styles.inputWrapper}>
+        <Icon size={20} color="#f97316" style={styles.inputIcon} />
         <TextInput
-          className="flex-1 ml-3 text-gray-800 text-base"
+          style={styles.input}
           placeholder={placeholder}
           value={value}
           onChangeText={onChangeText}
           placeholderTextColor="#9CA3AF"
           {...props}
         />
-        {label === 'Password' && (
+        {label.includes('Password') && (
           <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
             {showPassword ? (
               <EyeOff size={20} color="#6B7280" />
@@ -108,53 +112,49 @@ const CompanySignupScreen = ({ navigation }) => {
   )
 
   return (
-    <SafeAreaView className="flex-1 bg-gradient-to-br from-orange-50 to-red-100">
+    <SafeAreaView style={styles.container}>
       <StatusBar style="dark" />
-
-      {/* Header */}
-      <View className="items-center pt-8 pb-6">
-        <View className="w-20 h-20 bg-orange-600 rounded-2xl items-center justify-center mb-4 shadow-lg">
-          <Building2 size={32} color="white" />
-        </View>
-        <Text className="text-3xl font-bold text-gray-800">Join Us</Text>
-        <Text className="text-gray-600 mt-2">Create your company account</Text>
-      </View>
-
-      {/* Signup Form */}
-      <View className="flex-1 bg-white rounded-t-3xl">
-        <ScrollView className="px-6 pt-8" showsVerticalScrollIndicator={false}>
-          <View className="mb-6">
-            <Text className="text-2xl font-bold text-gray-800 mb-2">
-              Company Registration
-            </Text>
-            <Text className="text-gray-600">Fill in your company details</Text>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scrollContent}
+      >
+        <View style={styles.header}>
+          <View style={styles.logoContainer}>
+            <Building2 size={40} color="#f97316" />
           </View>
+          <Text style={styles.title}>Company Registration</Text>
+          <Text style={styles.subtitle}>Create your company account</Text>
+        </View>
 
+        <View style={styles.form}>
           <InputField
             icon={User}
-            label="Company Name *"
+            label="Company Name"
             placeholder="Enter company name"
             value={name}
             onChangeText={setName}
+            required
           />
 
           <InputField
             icon={Mail}
-            label="Email Address *"
+            label="Email Address"
             placeholder="Enter your email"
             value={email}
             onChangeText={setEmail}
             keyboardType="email-address"
             autoCapitalize="none"
+            required
           />
 
           <InputField
             icon={Lock}
-            label="Password *"
+            label="Password"
             placeholder="Create a strong password"
             value={password}
             onChangeText={setPassword}
             secureTextEntry={!showPassword}
+            required
           />
 
           <InputField
@@ -176,46 +176,161 @@ const CompanySignupScreen = ({ navigation }) => {
             autoCapitalize="none"
           />
 
-          {/* Terms and Conditions */}
-          <View className="bg-orange-50 rounded-xl p-4 mb-6">
-            <Text className="text-sm text-gray-600 text-center">
+          <View style={styles.termsContainer}>
+            <Text style={styles.termsText}>
               By creating an account, you agree to our{' '}
-              <Text className="text-orange-600 font-medium">
-                Terms of Service
-              </Text>{' '}
-              and{' '}
-              <Text className="text-orange-600 font-medium">
-                Privacy Policy
-              </Text>
+              <Text style={styles.termsLink}>Terms of Service</Text> and{' '}
+              <Text style={styles.termsLink}>Privacy Policy</Text>
             </Text>
           </View>
 
-          {/* Create Account Button */}
           <TouchableOpacity
-            className={`bg-orange-600 rounded-xl py-4 items-center shadow-lg mb-6 ${
-              loading ? 'opacity-70' : ''
-            }`}
+            style={styles.button}
             onPress={handleSignup}
             disabled={loading}
           >
-            <Text className="text-white text-lg font-semibold">
-              {loading ? 'Creating Account...' : 'Create Account'}
-            </Text>
+            {loading ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <Text style={styles.buttonText}>Create Account</Text>
+            )}
           </TouchableOpacity>
 
-          {/* Login Link */}
-          <View className="flex-row justify-center items-center pb-8">
-            <Text className="text-gray-600">Already have an account? </Text>
+          <View style={styles.loginContainer}>
+            <Text style={styles.loginText}>Already have an account?</Text>
             <TouchableOpacity
               onPress={() => navigation.navigate('CompanyLogin')}
             >
-              <Text className="text-orange-600 font-semibold">Sign In</Text>
+              <Text style={styles.loginLink}>Sign In</Text>
             </TouchableOpacity>
           </View>
-        </ScrollView>
-      </View>
+        </View>
+      </ScrollView>
     </SafeAreaView>
   )
 }
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#f9fafb',
+  },
+  scrollContent: {
+    paddingHorizontal: 24,
+    paddingVertical: 40,
+  },
+  header: {
+    alignItems: 'center',
+    marginBottom: 32,
+  },
+  logoContainer: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: '#fff',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
+    elevation: 2,
+    borderWidth: 1,
+    borderColor: '#f97316',
+  },
+  title: {
+    fontSize: 28,
+    fontWeight: '700',
+    color: '#1f2937',
+  },
+  subtitle: {
+    fontSize: 16,
+    color: '#6b7280',
+    marginTop: 6,
+    textAlign: 'center',
+  },
+  form: {
+    width: '100%',
+  },
+  inputContainer: {
+    marginBottom: 20,
+  },
+  inputLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#4b5563',
+    marginBottom: 8,
+  },
+  requiredStar: {
+    color: '#f97316',
+  },
+  inputWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#d1d5db',
+  },
+  inputIcon: {
+    marginRight: 12,
+  },
+  input: {
+    flex: 1,
+    paddingVertical: 16,
+    fontSize: 16,
+    color: '#1f2937',
+  },
+  termsContainer: {
+    backgroundColor: '#fff8f0',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 24,
+    borderWidth: 1,
+    borderColor: '#ffedd5',
+  },
+  termsText: {
+    fontSize: 14,
+    color: '#6b7280',
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+  termsLink: {
+    color: '#f97316',
+    fontWeight: '600',
+  },
+  button: {
+    backgroundColor: '#f97316',
+    paddingVertical: 16,
+    borderRadius: 12,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
+    shadowRadius: 6,
+    elevation: 3,
+    marginBottom: 24,
+  },
+  buttonText: {
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: '600',
+  },
+  loginContainer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loginText: {
+    color: '#6b7280',
+    fontSize: 16,
+  },
+  loginLink: {
+    color: '#f97316',
+    fontWeight: '600',
+    fontSize: 16,
+    marginLeft: 4,
+  },
+})
 
 export default CompanySignupScreen

@@ -17,7 +17,8 @@ import { StatusBar } from 'expo-status-bar'
 import axios from 'axios'
 import { useAuth } from '../../context/AuthContext'
 
-function AdminLoginScreen({ navigation }) {
+function AdminLoginScreen({ route, navigation }) {
+  const { userType = 'admin' } = route.params || {}
   const { login } = useAuth()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -34,7 +35,7 @@ function AdminLoginScreen({ navigation }) {
     setError('')
 
     try {
-      const res = await axios.post('http://10.0.2.2:5000/api/admin/login', {
+      const res = await axios.post('http://192.168.1.69:5000/api/admin/login', {
         email,
         password,
       })
@@ -43,10 +44,10 @@ function AdminLoginScreen({ navigation }) {
         throw new Error(res.data.message || 'Login failed')
       }
 
-      const { token } = res.data
+      const { token, admin } = res.data
 
-      // Use the AuthContext login function
-      await login(token, 'admin', email)
+      // Pass the admin data and userType to the login function
+      await login(token, userType, admin)
       console.log('✅ Admin Login successful')
     } catch (err) {
       console.error('❌ Admin login error:', err)

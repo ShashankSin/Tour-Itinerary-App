@@ -1,4 +1,6 @@
-import React, { useState, useEffect } from 'react'
+'use client'
+
+import { useState, useEffect, useRef } from 'react'
 import {
   View,
   Text,
@@ -8,13 +10,30 @@ import {
   Image,
   ActivityIndicator,
   Alert,
+  Animated,
+  Dimensions,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { StatusBar } from 'expo-status-bar'
-import { Ionicons } from '@expo/vector-icons'
 import axios from 'axios'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { jwtDecode } from 'jwt-decode'
+import {
+  Search,
+  MapPin,
+  Calendar,
+  CheckCircle,
+  XCircle,
+  Clock,
+  Sparkles,
+  Mountain,
+  TrendingUp,
+} from 'lucide-react-native'
+import { useNavigation } from '@react-navigation/native'
+import { CommonActions } from '@react-navigation/native'
+import { useAuth } from '../../context/AuthContext'
+
+const { width } = Dimensions.get('window')
 
 const AdminItinerariesScreen = () => {
   const [itineraries, setItineraries] = useState([])
@@ -23,14 +42,77 @@ const AdminItinerariesScreen = () => {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
 
-  const colors = {
-    primary: '#FF7A00',
-    primaryLight: '#FFF0E6',
-    background: '#FFFFFF',
-    text: '#333333',
-    textLight: '#666666',
-    border: '#EEEEEE',
-  }
+  // Animation values
+  const fadeAnim = useRef(new Animated.Value(0)).current
+  const slideAnim = useRef(new Animated.Value(50)).current
+  const headerScale = useRef(new Animated.Value(0.9)).current
+  const searchScale = useRef(new Animated.Value(0.95)).current
+  const floatingAnim = useRef(new Animated.Value(0)).current
+  const pulseAnim = useRef(new Animated.Value(1)).current
+
+  const navigation = useNavigation()
+  const { logout } = useAuth()
+
+  useEffect(() => {
+    // Staggered animations
+    Animated.stagger(150, [
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 800,
+        useNativeDriver: true,
+      }),
+      Animated.spring(headerScale, {
+        toValue: 1,
+        tension: 80,
+        friction: 8,
+        useNativeDriver: true,
+      }),
+      Animated.spring(searchScale, {
+        toValue: 1,
+        tension: 100,
+        friction: 8,
+        useNativeDriver: true,
+      }),
+      Animated.timing(slideAnim, {
+        toValue: 0,
+        duration: 600,
+        useNativeDriver: true,
+      }),
+    ]).start()
+
+    // Continuous animations
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(floatingAnim, {
+          toValue: 1,
+          duration: 4000,
+          useNativeDriver: true,
+        }),
+        Animated.timing(floatingAnim, {
+          toValue: 0,
+          duration: 4000,
+          useNativeDriver: true,
+        }),
+      ])
+    ).start()
+
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, {
+          toValue: 1.05,
+          duration: 2000,
+          useNativeDriver: true,
+        }),
+        Animated.timing(pulseAnim, {
+          toValue: 1,
+          duration: 2000,
+          useNativeDriver: true,
+        }),
+      ])
+    ).start()
+
+    fetchItineraries()
+  }, [])
 
   // Fetch all treks
   const fetchItineraries = async () => {
@@ -66,11 +148,18 @@ const AdminItinerariesScreen = () => {
           'Error',
           'Authorization token is missing. Please log in again.'
         )
+        await logout()
         return
       }
 
       // Decode token and validate admin role
       const decoded = jwtDecode(token)
+      if (decoded.exp && Date.now() >= decoded.exp * 1000) {
+        Alert.alert('Session Expired', 'Please log in again.')
+        await logout()
+        return
+      }
+
       if (decoded.role !== 'admin') {
         Alert.alert('Unauthorized', 'Only admin can approve itineraries')
         return
@@ -86,12 +175,11 @@ const AdminItinerariesScreen = () => {
       // Send the request to the correct endpoint based on approve value
       const endpoint = approve ? 'approve' : 'reject'
       const response = await axios.put(
-        `http://10.0.2.2:5000/api/trek/${endpoint}/${itineraryId}`,
+        `http://192.168.1.69:5000/api/trek/${endpoint}/${itineraryId}`,
         {},
         {
           headers: {
             Authorization: `Bearer ${token}`,
-            'Content-Type': 'application/json',
           },
         }
       )
@@ -116,20 +204,23 @@ const AdminItinerariesScreen = () => {
         )
       )
 
-      Alert.alert(
-        'Error',
-        err.response?.data?.message || 'Failed to update approval status'
-      )
+      if (err.response?.status === 401) {
+        Alert.alert('Session Expired', 'Please log in again.', [
+          {
+            text: 'OK',
+            onPress: async () => {
+              await logout()
+            },
+          },
+        ])
+      } else {
+        Alert.alert(
+          'Error',
+          err.response?.data?.message || 'Failed to update approval status'
+        )
+      }
     }
   }
-
-  // ✅ Correct way to handle async function inside useEffect
-  useEffect(() => {
-    const fetchData = async () => {
-      await fetchItineraries()
-    }
-    fetchData()
-  }, [])
 
   const filteredItineraries = itineraries.filter((item) => {
     const txt = searchQuery.toLowerCase()
@@ -143,272 +234,396 @@ const AdminItinerariesScreen = () => {
     return true
   })
 
+  const AnimatedItineraryCard = ({ item, index }) => {
+    const cardAnim = useRef(new Animated.Value(0)).current
+    const cardScale = useRef(new Animated.Value(1)).current
+
+    useEffect(() => {
+      Animated.timing(cardAnim, {
+        toValue: 1,
+        duration: 600,
+        delay: index * 100,
+        useNativeDriver: true,
+      }).start()
+    }, [])
+
+    const handlePressIn = () => {
+      Animated.spring(cardScale, {
+        toValue: 0.98,
+        useNativeDriver: true,
+      }).start()
+    }
+
+    const handlePressOut = () => {
+      Animated.spring(cardScale, {
+        toValue: 1,
+        useNativeDriver: true,
+      }).start()
+    }
+
+    return (
+      <Animated.View
+        style={{
+          opacity: cardAnim,
+          transform: [
+            { scale: cardScale },
+            {
+              translateY: cardAnim.interpolate({
+                inputRange: [0, 1],
+                outputRange: [50, 0],
+              }),
+            },
+          ],
+        }}
+      >
+        <TouchableOpacity
+          className="bg-white rounded-3xl mb-8 shadow-xl border border-orange-100 overflow-hidden"
+          onPressIn={handlePressIn}
+          onPressOut={handlePressOut}
+        >
+          <View className="relative">
+            <Image
+              source={{
+                uri:
+                  item.images?.[0] ||
+                  'https://via.placeholder.com/300x200/FF7A00/FFFFFF?text=Trek',
+              }}
+              className="w-full h-48"
+              resizeMode="cover"
+            />
+            <View className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
+
+            <View className="absolute top-4 right-4">
+              <View
+                className={`px-4 py-2 rounded-full ${
+                  item.isApproved ? 'bg-green-500' : 'bg-yellow-500'
+                } shadow-lg`}
+              >
+                <Text className="text-white text-sm font-bold">
+                  {item.isApproved ? 'Approved' : 'Pending'}
+                </Text>
+              </View>
+            </View>
+          </View>
+
+          <View className="p-6">
+            {/* Title */}
+            <Text className="text-2xl font-bold text-gray-800 mb-4">
+              {item.title}
+            </Text>
+
+            {/* Details */}
+            <View className="space-y-4 mb-6">
+              <View className="flex-row items-center">
+                <MapPin size={20} color="#6B7280" />
+                <Text className="text-gray-600 text-base ml-4">
+                  {item.location}
+                </Text>
+              </View>
+              <View className="flex-row items-center">
+                <Calendar size={20} color="#6B7280" />
+                <Text className="text-gray-600 text-base ml-4">
+                  {item.startDate} - {item.endDate}
+                </Text>
+              </View>
+              <View className="flex-row items-center">
+                <Clock size={20} color="#6B7280" />
+                <Text className="text-gray-600 text-base ml-4">
+                  {item.duration} days
+                </Text>
+              </View>
+            </View>
+
+            <View className="bg-orange-50 rounded-2xl p-5 mb-6">
+              <Text className="text-orange-800 font-semibold mb-3 text-lg">
+                Category: {item.category}
+              </Text>
+              <Text className="text-gray-600 text-base leading-6">
+                {item.description?.slice(0, 100)}...
+              </Text>
+            </View>
+
+            <View className="flex-row items-center justify-between mb-8">
+              <Text className="text-3xl font-bold text-orange-600">
+                ${item.price}
+              </Text>
+              <Text className="text-gray-500 text-lg">
+                {item.duration} days
+              </Text>
+            </View>
+
+            {/* Actions */}
+            <View className="flex-row justify-end space-x-4">
+              {!item.isApproved ? (
+                <TouchableOpacity
+                  className="bg-green-500 rounded-2xl px-8 py-4 flex-row items-center shadow-lg"
+                  onPress={() => {
+                    console.log('Approving itinerary with ID:', item._id)
+                    updateApproval(item._id, true)
+                  }}
+                >
+                  <CheckCircle size={22} color="white" />
+                  <Text className="text-white font-bold ml-3 text-lg">
+                    Approve
+                  </Text>
+                </TouchableOpacity>
+              ) : (
+                <TouchableOpacity
+                  className="bg-yellow-500 rounded-2xl px-8 py-4 flex-row items-center shadow-lg"
+                  onPress={() => {
+                    console.log(
+                      'Setting itinerary to pending with ID:',
+                      item._id
+                    )
+                    updateApproval(item._id, false)
+                  }}
+                >
+                  <XCircle size={22} color="white" />
+                  <Text className="text-white font-bold ml-3 text-lg">
+                    Set Pending
+                  </Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          </View>
+        </TouchableOpacity>
+      </Animated.View>
+    )
+  }
+
+  const AnimatedFilterButton = ({ type, isActive, onPress, index }) => {
+    const buttonAnim = useRef(new Animated.Value(0)).current
+
+    useEffect(() => {
+      Animated.timing(buttonAnim, {
+        toValue: 1,
+        duration: 400,
+        delay: index * 100,
+        useNativeDriver: true,
+      }).start()
+    }, [])
+
+    return (
+      <Animated.View
+        style={{
+          opacity: buttonAnim,
+          transform: [
+            {
+              translateY: buttonAnim.interpolate({
+                inputRange: [0, 1],
+                outputRange: [20, 0],
+              }),
+            },
+          ],
+        }}
+      >
+        <TouchableOpacity
+          className={`mr-4 mb-4 px-8 py-4 rounded-2xl shadow-lg ${
+            isActive ? 'bg-orange-500' : 'bg-white border border-orange-200'
+          }`}
+          onPress={onPress}
+        >
+          <Text
+            className={`font-semibold text-lg capitalize ${
+              isActive ? 'text-white' : 'text-gray-700'
+            }`}
+          >
+            {type}
+          </Text>
+        </TouchableOpacity>
+      </Animated.View>
+    )
+  }
+
+  const floatingY = floatingAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, -15],
+  })
+
   if (loading && !itineraries.length) {
     return (
-      <SafeAreaView style={styles.center}>
-        <ActivityIndicator size="large" color={colors.primary} />
-        <Text style={{ marginTop: 16, color: colors.textLight }}>
-          Loading itineraries...
-        </Text>
+      <SafeAreaView className="flex-1 justify-center items-center bg-orange-50">
+        <Animated.View
+          className="bg-white rounded-3xl p-10 shadow-2xl items-center"
+          style={{
+            opacity: fadeAnim,
+            transform: [{ scale: pulseAnim }],
+          }}
+        >
+          <Animated.View
+            style={{
+              transform: [
+                {
+                  rotate: floatingAnim.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: ['0deg', '360deg'],
+                  }),
+                },
+              ],
+            }}
+          >
+            <ActivityIndicator size="large" color="#ea580c" />
+          </Animated.View>
+          <Text className="text-gray-600 mt-6 font-semibold text-xl">
+            Loading itineraries...
+          </Text>
+        </Animated.View>
       </SafeAreaView>
     )
   }
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
-      <StatusBar style="dark" />
-      <View style={{ flex: 1 }}>
-        {/* Header + Search */}
-        <View style={styles.header(colors)}>
-          <Text style={styles.title(colors)}>Itineraries</Text>
-          <View style={styles.searchBar(colors)}>
-            <Ionicons name="search" size={20} color={colors.textLight} />
-            <TextInput
-              style={{ flex: 1, marginLeft: 8, color: colors.text }}
-              placeholder="Search by title or location..."
-              placeholderTextColor={colors.textLight}
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-            />
-          </View>
-        </View>
+    <SafeAreaView className="flex-1 bg-orange-50">
+      <View className="flex-1 bg-orange-50">
+        <StatusBar style="dark" />
+
+        {/* Animated Header */}
+        <Animated.View
+          className="bg-orange-500 px-6 pt-8 pb-8 rounded-b-[40px] shadow-2xl"
+          style={{
+            opacity: fadeAnim,
+            transform: [{ scale: headerScale }],
+          }}
+        >
+          {/* Floating Elements */}
+          <Animated.View
+            className="absolute top-16 right-8 w-4 h-4 bg-white/30 rounded-full"
+            style={{ transform: [{ translateY: floatingY }] }}
+          />
+          <Animated.View
+            className="absolute top-32 left-8 w-3 h-3 bg-yellow-300/40 rounded-full"
+            style={{ transform: [{ translateY: floatingY }] }}
+          />
+
+          <Animated.View
+            style={{
+              opacity: fadeAnim,
+              transform: [{ translateY: slideAnim }],
+            }}
+          >
+            <View className="flex-row items-center mb-3">
+              <Mountain size={32} color="white" />
+              <Text className="text-white text-xl opacity-90 ml-4">
+                Trek Management
+              </Text>
+            </View>
+            <Text className="text-white text-3xl font-bold mb-2">
+              Itineraries
+            </Text>
+            <Text className="text-white opacity-90 text-lg">
+              Manage and approve trek itineraries
+            </Text>
+          </Animated.View>
+
+          {/* Search Bar */}
+          <Animated.View
+            className="mt-8"
+            style={{
+              opacity: fadeAnim,
+              transform: [{ scale: searchScale }],
+            }}
+          >
+            <View className="bg-white/95 backdrop-blur-xl rounded-3xl px-6 py-5 shadow-xl border border-orange-200 flex-row items-center">
+              <Search size={24} color="#ea580c" />
+              <TextInput
+                className="flex-1 ml-4 text-gray-900 text-lg"
+                placeholder="Search by title or location..."
+                placeholderTextColor="#9CA3AF"
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+              />
+            </View>
+          </Animated.View>
+        </Animated.View>
 
         {/* Filters */}
-        <View style={{ flexDirection: 'row', padding: 16, flexWrap: 'wrap' }}>
-          {['all', 'approved', 'pending'].map((type) => (
-            <TouchableOpacity
-              key={type}
-              style={{
-                marginRight: 8,
-                marginBottom: 8,
-                paddingHorizontal: 16,
-                paddingVertical: 8,
-                borderRadius: 20,
-                backgroundColor: filter === type ? colors.primary : '#F5F5F5',
-              }}
-              onPress={() => setFilter(type)}
-            >
-              <Text
-                style={{
-                  color: filter === type ? colors.background : colors.text,
-                  textTransform: 'capitalize',
-                }}
-              >
-                {type}
-              </Text>
-            </TouchableOpacity>
-          ))}
+        <View className="px-6 py-8 -mt-4">
+          <View className="flex-row flex-wrap">
+            {['all', 'approved', 'pending'].map((type, index) => (
+              <AnimatedFilterButton
+                key={type}
+                type={type}
+                isActive={filter === type}
+                onPress={() => setFilter(type)}
+                index={index}
+              />
+            ))}
+          </View>
         </View>
 
         {/* Error */}
         {error && (
-          <View style={styles.errorBox(colors)}>
-            <Text style={{ color: '#ef4444' }}>{error}</Text>
+          <Animated.View
+            className="mx-6 mb-6 bg-red-50 border border-red-200 rounded-3xl p-6"
+            style={{ opacity: fadeAnim }}
+          >
+            <Text className="text-red-600 text-lg font-semibold mb-4">
+              {error}
+            </Text>
             <TouchableOpacity
-              style={styles.retryButton(colors)}
+              className="bg-orange-500 rounded-2xl px-8 py-4 self-end shadow-lg"
               onPress={fetchItineraries}
             >
-              <Text style={{ color: colors.background }}>Retry</Text>
+              <Text className="text-white font-bold text-lg">Retry</Text>
             </TouchableOpacity>
-          </View>
+          </Animated.View>
         )}
 
         {/* List */}
-        <ScrollView style={{ flex: 1, padding: 16 }}>
+        <ScrollView
+          className="flex-1 px-6"
+          showsVerticalScrollIndicator={false}
+        >
+          <View className="flex-row items-center mb-8">
+            <TrendingUp size={28} color="#ea580c" />
+            <Text className="text-2xl font-bold text-gray-800 ml-4">
+              All Itineraries
+            </Text>
+            <Animated.View
+              className="ml-4"
+              style={{
+                transform: [
+                  {
+                    rotate: floatingAnim.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: ['0deg', '360deg'],
+                    }),
+                  },
+                ],
+              }}
+            >
+              <Sparkles size={24} color="#f97316" />
+            </Animated.View>
+          </View>
+
           {filteredItineraries.length ? (
             filteredItineraries.map((item, idx) => (
-              <View key={item._id || idx} style={styles.card(colors)}>
-                <Image
-                  source={{ uri: item.images?.[0] || placeholder }}
-                  style={{ width: '100%', height: 160 }}
-                />
-                <View style={{ padding: 16 }}>
-                  {/* Title + Badge */}
-                  <View style={styles.rowBetween}>
-                    <Text style={styles.cardTitle(colors)}>{item.title}</Text>
-                    <View
-                      style={{
-                        backgroundColor: item.isApproved
-                          ? '#E6F7EE'
-                          : '#FFF8E6',
-                        paddingHorizontal: 8,
-                        paddingVertical: 4,
-                        borderRadius: 20,
-                      }}
-                    >
-                      <Text
-                        style={{
-                          color: item.isApproved ? '#10b981' : '#f59e0b',
-                          fontSize: 12,
-                          fontWeight: '600',
-                        }}
-                      >
-                        {item.isApproved ? 'Approved' : 'Pending'}
-                      </Text>
-                    </View>
-                  </View>
-                  {/* Details */}
-                  <Text style={styles.textLight(colors)}>{item.location}</Text>
-                  <Text style={styles.textLight(colors)}>
-                    {item.startDate} - {item.endDate}
-                  </Text>
-                  <Text style={styles.category(colors)}>
-                    Category: {item.category}
-                  </Text>
-                  <Text style={styles.textLight(colors)}>
-                    {item.description?.slice(0, 100)}...
-                  </Text>
-                  <View style={styles.rowBetween}>
-                    <Text style={styles.textLight(colors)}>
-                      {item.duration} days
-                    </Text>
-                    <Text style={styles.price(colors)}>${item.price}</Text>
-                  </View>
-                  {/* Actions */}
-                  <View
-                    style={{
-                      flexDirection: 'row',
-                      marginTop: 16,
-                      justifyContent: 'flex-end',
-                    }}
-                  >
-                    {!item.isApproved ? (
-                      <TouchableOpacity
-                        style={styles.approveBtn(colors)}
-                        onPress={() => {
-                          console.log('Approving itinerary with ID:', item._id)
-                          updateApproval(item._id, true)
-                        }}
-                      >
-                        <Ionicons
-                          name="checkmark-outline"
-                          size={16}
-                          color="#fff"
-                        />
-                        <Text style={styles.btnText}>Approve</Text>
-                      </TouchableOpacity>
-                    ) : (
-                      <TouchableOpacity
-                        style={styles.pendingBtn}
-                        onPress={() => {
-                          console.log(
-                            'Setting itinerary to pending with ID:',
-                            item._id
-                          )
-                          updateApproval(item._id, false)
-                        }}
-                      >
-                        <Ionicons
-                          name="reload-outline"
-                          size={16}
-                          color="#fff"
-                        />
-                        <Text style={styles.btnText}>Set Pending</Text>
-                      </TouchableOpacity>
-                    )}
-                  </View>
-                </View>
-              </View>
+              <AnimatedItineraryCard
+                key={item._id || idx}
+                item={item}
+                index={idx}
+              />
             ))
           ) : (
-            <View style={styles.center}>
-              <Ionicons name="map-outline" size={48} color="#DDDDDD" />
-              <Text
-                style={{
-                  marginTop: 16,
-                  color: colors.textLight,
-                  textAlign: 'center',
-                }}
-              >
+            <Animated.View
+              className="items-center py-16"
+              style={{ opacity: fadeAnim }}
+            >
+              <Mountain size={64} color="#d1d5db" />
+              <Text className="text-center text-gray-500 mt-6 text-xl font-semibold">
                 No itineraries found
               </Text>
-            </View>
+              <Text className="text-center text-gray-400 mt-3 text-lg">
+                Try adjusting your search or filter criteria
+              </Text>
+            </Animated.View>
           )}
+
+          <View className="h-10" />
         </ScrollView>
       </View>
     </SafeAreaView>
   )
-}
-
-// Some styling helpers
-const placeholder =
-  'https://via.placeholder.com/300x200/FF7A00/FFFFFF?text=Trek'
-
-const styles = {
-  center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  header: (c) => ({
-    padding: 24,
-    borderBottomWidth: 1,
-    borderBottomColor: c.border,
-    backgroundColor: c.primaryLight,
-  }),
-  title: (c) => ({ fontSize: 28, fontWeight: 'bold', color: c.primary }),
-  searchBar: (c) => ({
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: c.background,
-    borderRadius: 30,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderWidth: 1,
-    borderColor: c.border,
-    marginTop: 16,
-  }),
-  errorBox: (c) => ({
-    padding: 16,
-    backgroundColor: '#FEEBEB',
-    marginHorizontal: 16,
-    borderRadius: 8,
-  }),
-  retryButton: (c) => ({
-    backgroundColor: c.primary,
-    padding: 8,
-    borderRadius: 8,
-    alignSelf: 'flex-end',
-    marginTop: 8,
-  }),
-  card: (c) => ({
-    backgroundColor: c.background,
-    borderRadius: 16,
-    marginBottom: 16,
-    overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
-  }),
-  rowBetween: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  cardTitle: (c) => ({ fontSize: 18, fontWeight: 'bold', color: c.text }),
-  textLight: (c) => ({ color: c.textLight, marginBottom: 8 }),
-  category: (c) => ({ fontWeight: 'bold', color: c.primary, marginBottom: 8 }),
-  price: (c) => ({ fontWeight: 'bold', color: c.primary }),
-  approveBtn: (c) => ({
-    backgroundColor: c.primary,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 8,
-    flexDirection: 'row',
-    alignItems: 'center',
-  }),
-  pendingBtn: {
-    backgroundColor: '#f59e0b',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 8,
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  btnText: {
-    marginLeft: 8,
-    fontWeight: 'bold',
-    color: '#fff',
-  },
 }
 
 export default AdminItinerariesScreen
