@@ -301,18 +301,19 @@ export const approveTrek = async (req, res) => {
       })
     }
 
-    // Check if trek exists
-    const trek = await Trek.findById(id)
+    // Check if trek exists and update only the isApproved field
+    const trek = await Trek.findByIdAndUpdate(
+      id,
+      { isApproved: true },
+      { new: true, runValidators: false }
+    )
+
     if (!trek) {
       return res.status(404).json({
         success: false,
         message: 'Trek not found',
       })
     }
-
-    // Update trek approval status
-    trek.isApproved = true
-    await trek.save()
 
     return res.status(200).json({
       success: true,
@@ -341,18 +342,19 @@ export const rejectTrek = async (req, res) => {
       })
     }
 
-    // Check if trek exists
-    const trek = await Trek.findById(id)
+    // Check if trek exists and update only the isApproved field
+    const trek = await Trek.findByIdAndUpdate(
+      id,
+      { isApproved: false },
+      { new: true, runValidators: false }
+    )
+
     if (!trek) {
       return res.status(404).json({
         success: false,
         message: 'Trek not found',
       })
     }
-
-    // Update trek approval status
-    trek.isApproved = false
-    await trek.save()
 
     return res.status(200).json({
       success: true,

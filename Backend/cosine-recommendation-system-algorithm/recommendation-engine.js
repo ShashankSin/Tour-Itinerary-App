@@ -1,4 +1,3 @@
-// Cosine Similarity Recommendation Engine for Trek Application
 import Trek from '../model/trekModel.js'
 import Review from '../model/reviewModel.js'
 import Wishlist from '../model/wishlistModel.js'
@@ -18,7 +17,7 @@ class TrekRecommendationEngine {
     }
   }
 
-  // Create feature vector for a trek
+  //! Create feature vector for a trek
   createTrekVector(trek) {
     if (!trek) {
       console.error('Invalid trek object provided to createTrekVector')
@@ -28,14 +27,14 @@ class TrekRecommendationEngine {
     return [
       this.difficultyWeights[trek.difficulty?.toLowerCase()] || 0,
       this.categoryWeights[trek.category?.toLowerCase()] || 0,
-      Math.log(trek.duration + 1), // Log scale for duration
-      Math.log(trek.price + 1), // Log scale for price
+      Math.log(trek.duration + 1),
+      Math.log(trek.price + 1),
       trek.rating || 0,
-      Math.log(trek.ratingCount + 1), // Log scale for rating count
+      Math.log(trek.ratingCount + 1),
     ]
   }
 
-  // Create user preference vector based on their interactions
+  //! Create user preference vector based on their interactions
   async createUserVector(userId) {
     if (!userId) {
       console.error('Invalid userId provided to createUserVector')
@@ -60,7 +59,7 @@ class TrekRecommendationEngine {
       const weightedVector = [0, 0, 0, 0, 0, 0]
       let totalWeight = 0
 
-      // Weight based on reviews (highest weight)
+      //! Weight based on reviews (highest weight)
       userReviews?.forEach((review) => {
         if (review?.trekId) {
           const trekVector = this.createTrekVector(review.trekId)
@@ -72,7 +71,7 @@ class TrekRecommendationEngine {
         }
       })
 
-      // Weight based on bookings (medium weight)
+      //! Weight based on bookings (medium weight)
       userBookings?.forEach((booking) => {
         if (booking?.trekId) {
           const trekVector = this.createTrekVector(booking.trekId)
@@ -84,7 +83,7 @@ class TrekRecommendationEngine {
         }
       })
 
-      // Weight based on wishlist (lower weight)
+      //! Weight based on wishlist (lower weight)
       userWishlist?.treks?.forEach((trek) => {
         if (trek) {
           const trekVector = this.createTrekVector(trek)
@@ -96,7 +95,7 @@ class TrekRecommendationEngine {
         }
       })
 
-      // Normalize the vector
+      //! Normalize the vector
       if (totalWeight > 0) {
         for (let i = 0; i < weightedVector.length; i++) {
           weightedVector[i] /= totalWeight
@@ -110,12 +109,12 @@ class TrekRecommendationEngine {
     }
   }
 
-  // Get average vector for new users
+  //! Get average vector for new users
   async getAverageVector() {
     try {
       const treks = await Trek.find({ isApproved: true })
       if (!treks?.length) {
-        return [2, 2, 2, 7, 4, 3] // Default fallback vector
+        return [2, 2, 2, 7, 4, 3]
       }
 
       const vectors = treks.map((trek) => this.createTrekVector(trek))
@@ -138,7 +137,7 @@ class TrekRecommendationEngine {
     }
   }
 
-  // Calculate cosine similarity between two vectors
+  //! Calculate cosine similarity between two vectors
   cosineSimilarity(vectorA, vectorB) {
     if (!Array.isArray(vectorA) || !Array.isArray(vectorB)) {
       console.error('Invalid vectors provided to cosineSimilarity')
@@ -170,7 +169,7 @@ class TrekRecommendationEngine {
     return dotProduct / (magnitudeA * magnitudeB)
   }
 
-  // Get recommendations for a user
+  //! Get recommendations for a user
   async getRecommendations(userId, limit = 5) {
     if (!userId) {
       throw new Error('User ID is required for recommendations')
@@ -179,7 +178,7 @@ class TrekRecommendationEngine {
     try {
       const userVector = await this.createUserVector(userId)
 
-      // Get treks user has already interacted with
+      //! Get treks user has already interacted with
       const [userReviews, userWishlist, userBookings] = await Promise.all([
         Review.find({ userId }).select('trekId'),
         Wishlist.findOne({ userId }).select('treks'),
@@ -199,7 +198,7 @@ class TrekRecommendationEngine {
         )
       }
 
-      // Get all approved treks not interacted with
+      //! Get all approved treks not interacted with
       const availableTreks = await Trek.find({
         isApproved: true,
         _id: { $nin: Array.from(userInteractedTreks) },
@@ -209,7 +208,7 @@ class TrekRecommendationEngine {
         return []
       }
 
-      // Calculate similarity for all available treks
+      //! Calculate similarity for all available treks
       const recommendations = availableTreks
         .map((trek) => {
           if (!trek) return null
@@ -225,7 +224,7 @@ class TrekRecommendationEngine {
               Math.log((trek.ratingCount || 0) + 1),
           }
         })
-        .filter(Boolean) // Remove null entries
+        .filter(Boolean)
         .sort((a, b) => b.score - a.score)
         .slice(0, limit)
 
@@ -240,7 +239,7 @@ class TrekRecommendationEngine {
     }
   }
 
-  // Get trending treks
+  //! Get trending treks
   async getTrendingTreks(limit = 5) {
     try {
       const treks = await Trek.find({ isApproved: true })
@@ -254,7 +253,7 @@ class TrekRecommendationEngine {
     }
   }
 
-  // Get popular destinations
+  //! Get popular destinations
   async getPopularDestinations(limit = 5) {
     try {
       const treks = await Trek.find({ isApproved: true })
