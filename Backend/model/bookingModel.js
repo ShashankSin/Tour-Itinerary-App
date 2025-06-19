@@ -52,8 +52,8 @@ const bookingSchema = new mongoose.Schema(
     },
     paymentMethod: {
       type: String,
-      enum: ['card', 'paypal', 'apple', 'other'],
-      default: 'card',
+      enum: ['khalti', 'esewa'],
+      default: 'khalti',
     },
     specialRequests: {
       type: String,

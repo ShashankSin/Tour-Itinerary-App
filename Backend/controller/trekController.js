@@ -164,7 +164,10 @@ export const getAllTreks = async (req, res) => {
 // Get trek by ID
 export const getTrek = async (req, res) => {
   try {
-    const treks = await Trek.find().populate('companyId', 'name email')
+    // Only return approved treks for public access
+    const treks = await Trek.find({ isApproved: true })
+      .populate('companyId', 'name email logo')
+      .sort({ createdAt: -1 })
 
     return res.status(200).json({
       success: true,
@@ -383,7 +386,7 @@ export const getitinerary = async (req, res) => {
       })
     }
 
-    const trek = await Trek.findById(id)
+    const trek = await Trek.findById(id).populate('companyId', 'name email')
 
     if (!trek) {
       return res.status(404).json({
@@ -409,23 +412,38 @@ export const getitinerary = async (req, res) => {
 export const useritineraryfetch = async (req, res) => {
   try {
     const { id } = req.params
+    console.log('Public itinerary fetch requested for ID:', id)
 
     // Validate the ID
     if (!id || id === 'undefined' || !mongoose.Types.ObjectId.isValid(id)) {
+      console.log('Invalid ID provided:', id)
       return res.status(400).json({
         success: false,
         message: 'Invalid itinerary ID',
       })
     }
 
-    const itinerary = await Trek.findById(id)
+    const itinerary = await Trek.findById(id).populate(
+      'companyId',
+      'name email'
+    )
 
     if (!itinerary) {
+      console.log('Itinerary not found for ID:', id)
       return res
         .status(404)
         .json({ success: false, message: 'Itinerary not found' })
     }
 
+    // Only return approved treks for public access
+    if (!itinerary.isApproved) {
+      console.log('Itinerary not approved for ID:', id)
+      return res
+        .status(404)
+        .json({ success: false, message: 'Itinerary not available' })
+    }
+
+    console.log('Successfully fetched itinerary:', itinerary.title)
     res.status(200).json(itinerary)
   } catch (error) {
     console.error('Error fetching itinerary:', error)

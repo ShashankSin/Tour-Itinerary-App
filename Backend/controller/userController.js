@@ -30,6 +30,7 @@ export const getUserdata = async (req, res) => {
       success: true,
       usersData: {
         name: user.name,
+        email: user.email,
         isVerified: user.isVerified,
       },
     })

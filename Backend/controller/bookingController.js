@@ -152,7 +152,7 @@ export const createBooking = async (req, res) => {
 export const getUserBookings = async (req, res) => {
   try {
     // Get user ID from authenticated user
-    const userId = req.body.userId
+    const userId = req.user.id
 
     const bookings = await Booking.find({ userId })
       .populate('trekId', 'title location duration images')
@@ -164,6 +164,7 @@ export const getUserBookings = async (req, res) => {
       bookings,
     })
   } catch (error) {
+    console.error('Error fetching user bookings:', error)
     return res.status(500).json({
       success: false,
       message: error.message,
@@ -319,6 +320,7 @@ export const updateBookingStatus = async (req, res) => {
 export const getBookingById = async (req, res) => {
   try {
     const { id } = req.params
+    const requesterId = req.user.id // Get from userAuth middleware
 
     const booking = await Booking.findById(id)
       .populate('trekId')
@@ -332,12 +334,8 @@ export const getBookingById = async (req, res) => {
       })
     }
 
-    // Check if user is authorized (company or user who made the booking)
-    const requesterId = req.body.userId
-    if (
-      booking.companyId._id.toString() !== requesterId &&
-      booking.userId._id.toString() !== requesterId
-    ) {
+    // Check if user is authorized (user who made the booking)
+    if (booking.userId._id.toString() !== requesterId) {
       return res.status(403).json({
         success: false,
         message: "Unauthorized: You don't have permission to view this booking",

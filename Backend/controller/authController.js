@@ -5,15 +5,13 @@ import transporter from '../config/nodemailer.js'
 import dotenv from 'dotenv'
 dotenv.config()
 export const registerUser = async (req, res) => {
-  const { name, email, password, userType } = req.body // ✅ Extract userType
-
+  const { name, email, password, userType } = req.body
   if (!name || !email || !password) {
     return res.status(400).json({
       success: false,
       message: 'Please fill all the fields',
     })
   }
-
   try {
     const existingUser = await userModel.findOne({ email })
     if (existingUser) {
@@ -22,18 +20,14 @@ export const registerUser = async (req, res) => {
         message: 'User already exists',
       })
     }
-
     const hashedPassword = await bcrypt.hash(password, 10)
-
     const user = new userModel({
       name,
       email,
       password: hashedPassword,
-      role: userType || 'user', // ✅ Explicitly assign role
+      role: userType || 'user',
     })
-
     await user.save()
-
     const token = jwt.sign(
       { id: user._id, role: user.role },
       process.env.JWT_SECRET,
@@ -41,26 +35,22 @@ export const registerUser = async (req, res) => {
         expiresIn: '1d',
       }
     )
-
     res.cookie('token', token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'strict',
       maxAge: 24 * 60 * 60 * 1000,
     })
-
     const otp = String(Math.floor(100000 + Math.random() * 900000))
     user.verifyOtp = otp
     user.verifyOtpExpiry = Date.now() + 24 * 60 * 60 * 1000
     await user.save()
-
     const mailOptions = {
       from: process.env.SENDER_EMAIL,
       to: email,
       subject: 'Verification OTP',
       text: `Your verification OTP is: ${otp}`,
     }
-
     await transporter.sendMail(mailOptions)
 
     return res.status(200).json({
