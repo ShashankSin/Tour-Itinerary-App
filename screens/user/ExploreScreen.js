@@ -1,5 +1,3 @@
-'use client'
-
 import { useState, useEffect } from 'react'
 import {
   View,
@@ -10,6 +8,8 @@ import {
   ActivityIndicator,
   FlatList,
   Alert,
+  ScrollView,
+  StatusBar,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import AsyncStorage from '@react-native-async-storage/async-storage'
@@ -24,57 +24,49 @@ import {
   Compass,
   X,
   Mountain,
+  TrendingUp,
 } from 'lucide-react-native'
 
 function ExploreScreen({ navigation, route }) {
   const [searchQuery, setSearchQuery] = useState('')
-  const [searchResults, setSearchResults] = useState([])
   const [isSearching, setIsSearching] = useState(false)
   const [showSearchResults, setShowSearchResults] = useState(false)
+  const [allTreks, setAllTreks] = useState([])
+  const [filteredTreks, setFilteredTreks] = useState([])
+  const [loading, setLoading] = useState(true)
 
   // Recommendation states
   const [recommendations, setRecommendations] = useState([])
   const [trending, setTrending] = useState([])
   const [popularDestinations, setPopularDestinations] = useState([])
-  const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
 
   const userId = route?.params?.userId
 
   useEffect(() => {
-    fetchRecommendations()
-  }, [userId])
+    fetchAllTreks()
+  }, [])
 
-  const handleSearch = async () => {
-    if (!searchQuery.trim()) {
-      setShowSearchResults(false)
-      return
-    }
-
+  const fetchAllTreks = async () => {
     try {
-      setIsSearching(true)
-      const token = await AsyncStorage.getItem('token')
-
-      const response = await axios.get(
-        `http://10.0.2.2:5000/api/trek/search?query=${encodeURIComponent(
-          searchQuery
-        )}`,
+      const token = await AsyncStorage.getItem('userToken')
+      const response = await fetch(
+        'http://10.0.2.2:5000/api/trek/allitinerary',
         {
           headers: {
             Authorization: `Bearer ${token}`,
           },
         }
       )
-
-      if (response.data.success) {
-        setSearchResults(response.data.data)
-        setShowSearchResults(true)
+      const data = await response.json()
+      if (data.success) {
+        setAllTreks(data.treks || [])
+        setFilteredTreks(data.treks || [])
       }
     } catch (error) {
-      console.error('Search error:', error)
-      Alert.alert('Error', 'Failed to search treks')
+      console.error('Error fetching treks:', error)
     } finally {
-      setIsSearching(false)
+      setLoading(false)
     }
   }
 
@@ -105,11 +97,34 @@ function ExploreScreen({ navigation, route }) {
     }
   }
 
+  const handleSearch = () => {
+    if (!searchQuery.trim()) {
+      setFilteredTreks(allTreks)
+      setShowSearchResults(false)
+      return
+    }
+
+    const query = searchQuery.toLowerCase().trim()
+    const filtered = allTreks.filter((trek) => {
+      return (
+        trek.title?.toLowerCase().includes(query) ||
+        trek.location?.toLowerCase().includes(query) ||
+        trek.description?.toLowerCase().includes(query) ||
+        trek.category?.toLowerCase().includes(query) ||
+        trek.difficulty?.toLowerCase().includes(query)
+      )
+    })
+    setFilteredTreks(filtered)
+    setShowSearchResults(true)
+  }
+
   const TrekCard = ({ trek, showSimilarity = false }) => (
     <TouchableOpacity
       className="mx-2 mb-4 bg-white rounded-3xl overflow-hidden shadow-lg border border-gray-200"
       style={{ width: 300 }}
-      onPress={() => navigation.navigate('TrekDetail', { id: trek._id })}
+      onPress={() =>
+        navigation.navigate('ItineraryDetail', { itineraryId: trek._id })
+      }
     >
       <View className="relative">
         <Image
@@ -190,7 +205,7 @@ function ExploreScreen({ navigation, route }) {
 
         <View className="flex-row items-center justify-between">
           <Text className="text-2xl font-bold text-orange-600">
-            ₹{trek.price}
+            NPR {trek.price}
           </Text>
           <TouchableOpacity className="bg-orange-500 rounded-2xl px-6 py-3 shadow-lg">
             <Text className="text-white text-base font-bold">Book Now</Text>
@@ -239,9 +254,15 @@ function ExploreScreen({ navigation, route }) {
         <Search size={22} color="#ea580c" />
         <TextInput
           className="flex-1 ml-4 text-gray-800 text-lg"
-          placeholder="Search destinations, treks..."
+          placeholder="Search destinations, treks, categories..."
           value={searchQuery}
-          onChangeText={setSearchQuery}
+          onChangeText={(text) => {
+            setSearchQuery(text)
+            if (!text.trim()) {
+              setFilteredTreks(allTreks)
+              setShowSearchResults(false)
+            }
+          }}
           onSubmitEditing={handleSearch}
           returnKeyType="search"
           placeholderTextColor="#9ca3af"
@@ -252,13 +273,14 @@ function ExploreScreen({ navigation, route }) {
           <TouchableOpacity
             onPress={() => {
               setSearchQuery('')
+              setFilteredTreks(allTreks)
               setShowSearchResults(false)
             }}
           >
             <X size={22} color="#6b7280" />
           </TouchableOpacity>
         ) : (
-          <TouchableOpacity>
+          <TouchableOpacity onPress={handleSearch}>
             <Filter size={22} color="#6b7280" />
           </TouchableOpacity>
         )}
@@ -316,10 +338,18 @@ function ExploreScreen({ navigation, route }) {
       {/* Header */}
       <View className="bg-orange-500 px-6 pt-16 pb-8 rounded-b-[40px] shadow-lg">
         <View className="flex-row items-center justify-between">
-          <View>
-            <Text className="text-white text-3xl font-bold">Explore</Text>
+          <View className="flex-1">
+            <View className="flex-row items-center mb-2">
+              <Search size={24} color="white" />
+              <Text className="text-white text-lg ml-2 font-medium">
+                Explore Treks
+              </Text>
+            </View>
+            <Text className="text-white text-3xl font-bold mt-1">
+              Find Your Adventure
+            </Text>
             <Text className="text-white mt-2 text-lg">
-              Discover amazing adventures
+              Discover amazing treks and destinations
             </Text>
           </View>
           <View className="w-16 h-16 bg-white/20 rounded-2xl items-center justify-center">
@@ -328,43 +358,74 @@ function ExploreScreen({ navigation, route }) {
         </View>
       </View>
 
-      <SearchBar />
-
-      {showSearchResults ? (
-        <View className="flex-1 px-6">
-          <Text className="text-2xl font-bold text-gray-800 mb-6">
-            Search Results ({searchResults.length})
-          </Text>
-          <FlatList
-            data={searchResults}
-            renderItem={({ item }) => <TrekCard trek={item} />}
-            keyExtractor={(item) => item._id}
-            showsVerticalScrollIndicator={false}
-            ListEmptyComponent={
-              <View className="items-center py-16">
-                <Search size={64} color="#d1d5db" />
-                <Text className="text-center text-gray-500 mt-6 text-xl font-semibold">
-                  No results found
-                </Text>
-                <Text className="text-center text-gray-400 mt-3 text-lg">
-                  Try searching with different keywords
-                </Text>
-              </View>
-            }
+      {/* Search Bar */}
+      <View className="px-6 -mt-4">
+        <View className="flex-row items-center bg-white rounded-3xl px-6 py-4 shadow-lg border border-gray-200">
+          <Search size={22} color="#ea580c" />
+          <TextInput
+            className="flex-1 ml-4 text-gray-800 text-lg"
+            placeholder="Search destinations, treks, categories..."
+            value={searchQuery}
+            onChangeText={(text) => {
+              setSearchQuery(text)
+              if (!text.trim()) {
+                setFilteredTreks(allTreks)
+                setShowSearchResults(false)
+              }
+            }}
+            onSubmitEditing={handleSearch}
+            returnKeyType="search"
+            placeholderTextColor="#9ca3af"
           />
+          {isSearching ? (
+            <ActivityIndicator size="small" color="#ea580c" />
+          ) : searchQuery.length > 0 ? (
+            <TouchableOpacity
+              onPress={() => {
+                setSearchQuery('')
+                setFilteredTreks(allTreks)
+                setShowSearchResults(false)
+              }}
+            >
+              <X size={22} color="#6b7280" />
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity onPress={handleSearch}>
+              <Filter size={22} color="#6b7280" />
+            </TouchableOpacity>
+          )}
         </View>
-      ) : (
-        sections.map((section) => (
-          <View key={section.title}>
-            {renderSection({
-              title: section.title,
-              data: section.data,
-              renderItem: section.renderItem,
-              icon: section.icon,
-            })}
+      </View>
+
+      {/* Content */}
+      <ScrollView
+        className="flex-1"
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingBottom: 20 }}
+      >
+        {/* All Treks Section */}
+        <View className="mt-8">
+          <SectionHeader
+            title={showSearchResults ? 'Search Results' : 'All Treks'}
+            icon={Mountain}
+          />
+          <View className="px-6">
+            {filteredTreks.map((trek) => (
+              <View key={trek._id} className="mb-6">
+                <TouchableOpacity
+                  onPress={() =>
+                    navigation.navigate('ItineraryDetail', {
+                      itineraryId: trek._id,
+                    })
+                  }
+                >
+                  <TrekCard trek={trek} />
+                </TouchableOpacity>
+              </View>
+            ))}
           </View>
-        ))
-      )}
+        </View>
+      </ScrollView>
     </View>
   )
 
@@ -372,12 +433,8 @@ function ExploreScreen({ navigation, route }) {
     return (
       <SafeAreaView className="flex-1 bg-gray-50">
         <View className="flex-1 justify-center items-center">
-          <View className="bg-white rounded-3xl p-10 shadow-lg items-center">
-            <ActivityIndicator size="large" color="#ea580c" />
-            <Text className="text-gray-800 mt-6 font-semibold text-xl">
-              Discovering adventures...
-            </Text>
-          </View>
+          <ActivityIndicator size="large" color="#ea580c" />
+          <Text className="text-gray-600 mt-4">Loading adventures...</Text>
         </View>
       </SafeAreaView>
     )
@@ -391,7 +448,7 @@ function ExploreScreen({ navigation, route }) {
             <Text className="text-red-500 text-xl font-bold mb-4">{error}</Text>
             <TouchableOpacity
               className="bg-orange-500 rounded-2xl px-8 py-4 shadow-lg"
-              onPress={fetchRecommendations}
+              onPress={fetchAllTreks}
             >
               <Text className="text-white font-bold text-lg">Try Again</Text>
             </TouchableOpacity>
@@ -403,12 +460,99 @@ function ExploreScreen({ navigation, route }) {
 
   return (
     <SafeAreaView className="flex-1 bg-gray-50">
-      <FlatList
-        data={[{ key: 'content' }]}
-        renderItem={renderContent}
-        keyExtractor={(item) => item.key}
+      <StatusBar style="dark" />
+
+      {/* Header */}
+      <View className="bg-orange-500 px-6 pt-16 pb-8 rounded-b-[40px] shadow-lg">
+        <View className="flex-row items-center justify-between">
+          <View className="flex-1">
+            <View className="flex-row items-center mb-2">
+              <Search size={24} color="white" />
+              <Text className="text-white text-lg ml-2 font-medium">
+                Explore Treks
+              </Text>
+            </View>
+            <Text className="text-white text-3xl font-bold mt-1">
+              Find Your Adventure
+            </Text>
+            <Text className="text-white mt-2 text-lg">
+              Discover amazing treks and destinations
+            </Text>
+          </View>
+          <View className="w-16 h-16 bg-white/20 rounded-2xl items-center justify-center">
+            <Mountain size={28} color="white" />
+          </View>
+        </View>
+      </View>
+
+      {/* Search Bar */}
+      <View className="px-6 -mt-4">
+        <View className="flex-row items-center bg-white rounded-3xl px-6 py-4 shadow-lg border border-gray-200">
+          <Search size={22} color="#ea580c" />
+          <TextInput
+            className="flex-1 ml-4 text-gray-800 text-lg"
+            placeholder="Search destinations, treks, categories..."
+            value={searchQuery}
+            onChangeText={(text) => {
+              setSearchQuery(text)
+              if (!text.trim()) {
+                setFilteredTreks(allTreks)
+                setShowSearchResults(false)
+              }
+            }}
+            onSubmitEditing={handleSearch}
+            returnKeyType="search"
+            placeholderTextColor="#9ca3af"
+          />
+          {isSearching ? (
+            <ActivityIndicator size="small" color="#ea580c" />
+          ) : searchQuery.length > 0 ? (
+            <TouchableOpacity
+              onPress={() => {
+                setSearchQuery('')
+                setFilteredTreks(allTreks)
+                setShowSearchResults(false)
+              }}
+            >
+              <X size={22} color="#6b7280" />
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity onPress={handleSearch}>
+              <Filter size={22} color="#6b7280" />
+            </TouchableOpacity>
+          )}
+        </View>
+      </View>
+
+      {/* Content */}
+      <ScrollView
+        className="flex-1"
         showsVerticalScrollIndicator={false}
-      />
+        contentContainerStyle={{ paddingBottom: 20 }}
+      >
+        {/* All Treks Section */}
+        <View className="mt-8">
+          <SectionHeader
+            title={showSearchResults ? 'Search Results' : 'All Treks'}
+            icon={Mountain}
+          />
+          <View className="px-6">
+            {filteredTreks.map((trek) => (
+              <View key={trek._id} className="mb-6">
+                <TouchableOpacity
+                  onPress={() =>
+                    navigation.navigate('ItineraryDetail', {
+                      itineraryId: trek._id,
+                    })
+                  }
+                >
+                  <TrekCard trek={trek} />
+                </TouchableOpacity>
+              </View>
+            ))}
+          </View>
+        </View>
+      </ScrollView>
     </SafeAreaView>
   )
 }

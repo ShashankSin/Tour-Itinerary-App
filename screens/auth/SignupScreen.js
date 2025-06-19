@@ -25,6 +25,10 @@ export default function SignupScreen({ route, navigation }) {
   const [confirmPassword, setConfirmPassword] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState('')
+  const [nameError, setNameError] = useState('')
+  const [emailError, setEmailError] = useState('')
+  const [passwordError, setPasswordError] = useState('')
+  const [confirmPasswordError, setConfirmPasswordError] = useState('')
 
   useEffect(() => {
     // Read userType from route.params and save to state
@@ -36,15 +40,72 @@ export default function SignupScreen({ route, navigation }) {
     }
   }, [route?.params?.userType])
 
-  const handleSignup = async () => {
-    console.log(userType)
-    if (!name || !email || !password || !confirmPassword) {
-      setError('Please fill all fields')
-      return
+  const validateEmail = (email) => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    return emailRegex.test(email)
+  }
+
+  const validatePassword = (password) => {
+    // At least 8 characters, 1 uppercase, 1 lowercase, 1 number
+    const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[a-zA-Z\d]{8,}$/
+    return passwordRegex.test(password)
+  }
+
+  const validateName = (name) => {
+    return name.length >= 2 && /^[a-zA-Z\s]*$/.test(name)
+  }
+
+  const validateForm = () => {
+    let isValid = true
+    setError('')
+    setNameError('')
+    setEmailError('')
+    setPasswordError('')
+    setConfirmPasswordError('')
+
+    // Validate name
+    if (!name) {
+      setNameError('Name is required')
+      isValid = false
+    } else if (!validateName(name)) {
+      setNameError('Name should only contain letters and spaces')
+      isValid = false
     }
 
-    if (password !== confirmPassword) {
-      setError('Passwords do not match')
+    // Validate email
+    if (!email) {
+      setEmailError('Email is required')
+      isValid = false
+    } else if (!validateEmail(email)) {
+      setEmailError('Please enter a valid email address')
+      isValid = false
+    }
+
+    // Validate password
+    if (!password) {
+      setPasswordError('Password is required')
+      isValid = false
+    } else if (!validatePassword(password)) {
+      setPasswordError(
+        'Password must be at least 8 characters long and contain uppercase, lowercase, and numbers'
+      )
+      isValid = false
+    }
+
+    // Validate confirm password
+    if (!confirmPassword) {
+      setConfirmPasswordError('Please confirm your password')
+      isValid = false
+    } else if (password !== confirmPassword) {
+      setConfirmPasswordError('Passwords do not match')
+      isValid = false
+    }
+
+    return isValid
+  }
+
+  const handleSignup = async () => {
+    if (!validateForm()) {
       return
     }
 
@@ -114,35 +175,74 @@ export default function SignupScreen({ route, navigation }) {
           </View>
 
           <View style={styles.form}>
-            <TextInput
-              style={styles.input}
-              placeholder={
-                userType === 'company' ? 'Company Name' : 'Full Name'
-              }
-              value={name}
-              onChangeText={setName}
-            />
-            <TextInput
-              style={styles.input}
-              placeholder="Email"
-              value={email}
-              onChangeText={setEmail}
-              autoCapitalize="none"
-            />
-            <TextInput
-              style={styles.input}
-              placeholder="Password"
-              value={password}
-              onChangeText={setPassword}
-              secureTextEntry
-            />
-            <TextInput
-              style={styles.input}
-              placeholder="Confirm Password"
-              value={confirmPassword}
-              onChangeText={setConfirmPassword}
-              secureTextEntry
-            />
+            <View>
+              <TextInput
+                style={[styles.input, nameError ? styles.inputError : null]}
+                placeholder={
+                  userType === 'company' ? 'Company Name' : 'Full Name'
+                }
+                value={name}
+                onChangeText={(text) => {
+                  setName(text)
+                  setNameError('')
+                }}
+              />
+              {nameError ? (
+                <Text style={styles.errorText}>{nameError}</Text>
+              ) : null}
+            </View>
+
+            <View>
+              <TextInput
+                style={[styles.input, emailError ? styles.inputError : null]}
+                placeholder="Email"
+                value={email}
+                onChangeText={(text) => {
+                  setEmail(text)
+                  setEmailError('')
+                }}
+                autoCapitalize="none"
+                keyboardType="email-address"
+              />
+              {emailError ? (
+                <Text style={styles.errorText}>{emailError}</Text>
+              ) : null}
+            </View>
+
+            <View>
+              <TextInput
+                style={[styles.input, passwordError ? styles.inputError : null]}
+                placeholder="Password"
+                value={password}
+                onChangeText={(text) => {
+                  setPassword(text)
+                  setPasswordError('')
+                }}
+                secureTextEntry
+              />
+              {passwordError ? (
+                <Text style={styles.errorText}>{passwordError}</Text>
+              ) : null}
+            </View>
+
+            <View>
+              <TextInput
+                style={[
+                  styles.input,
+                  confirmPasswordError ? styles.inputError : null,
+                ]}
+                placeholder="Confirm Password"
+                value={confirmPassword}
+                onChangeText={(text) => {
+                  setConfirmPassword(text)
+                  setConfirmPasswordError('')
+                }}
+                secureTextEntry
+              />
+              {confirmPasswordError ? (
+                <Text style={styles.errorText}>{confirmPasswordError}</Text>
+              ) : null}
+            </View>
 
             <TouchableOpacity
               style={styles.button}
@@ -239,5 +339,15 @@ const styles = StyleSheet.create({
     marginTop: 12,
     color: '#ef4444',
     textAlign: 'center',
+  },
+  inputError: {
+    borderColor: '#ef4444',
+  },
+  errorText: {
+    color: '#ef4444',
+    fontSize: 12,
+    marginTop: -12,
+    marginBottom: 12,
+    marginLeft: 4,
   },
 })

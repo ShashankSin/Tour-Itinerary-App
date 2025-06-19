@@ -1,46 +1,202 @@
-'use client'
-
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import {
   View,
   Text,
   ScrollView,
   TouchableOpacity,
   TextInput,
+  Alert,
+  ActivityIndicator,
+  Linking,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
+import axios from 'axios'
+import AsyncStorage from '@react-native-async-storage/async-storage'
 
 function PaymentScreen({ navigation, route }) {
-  const [selectedMethod, setSelectedMethod] = useState('card')
-  const [cardNumber, setCardNumber] = useState('')
-  const [cardName, setCardName] = useState('')
-  const [expiryDate, setExpiryDate] = useState('')
-  const [cvv, setCvv] = useState('')
+  const [selectedMethod, setSelectedMethod] = useState('khalti')
+  const [isLoading, setIsLoading] = useState(false)
+  const [bookingData, setBookingData] = useState(null)
+  const [loadingBooking, setLoadingBooking] = useState(true)
 
-  // Mock data - in a real app this would come from route params
-  const bookingDetails = {
-    name: 'Annapurna Base Camp Trek',
-    date: 'Oct 15 - Oct 25, 2023',
-    guests: 2,
-    price: 15000,
-    tax: 1500,
-    total: 16500,
-  }
+  // Get data from route params
+  const { bookingId, amount, paymentMethod, userToken } = route.params || {}
 
   const paymentMethods = [
-    { id: 'card', name: 'Credit/Debit Card', icon: 'card-outline' },
-    { id: 'upi', name: 'UPI', icon: 'phone-portrait-outline' },
-    { id: 'wallet', name: 'Digital Wallet', icon: 'wallet-outline' },
+    {
+      id: 'khalti',
+      name: 'Khalti',
+      icon: 'card-outline',
+      color: '#5C2D91',
+      description: 'Pay with Khalti Digital Wallet',
+    },
+    {
+      id: 'esewa',
+      name: 'eSewa',
+      icon: 'wallet-outline',
+      color: '#60BB46',
+      description: 'Pay with eSewa Digital Wallet',
+    },
   ]
 
-  const formatCardNumber = (text) => {
-    // Remove non-digit characters
-    const cleaned = text.replace(/\D/g, '')
-    // Add space after every 4 digits
-    const formatted = cleaned.replace(/(\d{4})(?=\d)/g, '$1 ')
-    // Limit to 19 characters (16 digits + 3 spaces)
-    return formatted.slice(0, 19)
+  // Fetch booking details from backend
+  useEffect(() => {
+    const fetchBookingDetails = async () => {
+      console.log('🔍 Fetching booking details...')
+      console.log('📋 Booking ID:', bookingId)
+      console.log('🔑 User Token:', userToken ? 'Present' : 'Missing')
+
+      if (!bookingId || !userToken) {
+        console.log('❌ Missing bookingId or userToken')
+        setLoadingBooking(false)
+        return
+      }
+
+      try {
+        console.log('🌐 Making API call to fetch booking...')
+        const response = await axios.get(
+          `http://192.168.1.100:5000/api/bookings/user/${bookingId}`,
+          {
+            headers: {
+              Authorization: `Bearer ${userToken}`,
+            },
+          }
+        )
+
+        console.log('✅ API Response:', response.data)
+
+        if (response.data.success) {
+          console.log('📦 Setting booking data:', response.data.booking)
+          setBookingData(response.data.booking)
+        } else {
+          console.log('❌ API returned success: false')
+        }
+      } catch (error) {
+        console.error('❌ Error fetching booking details:', error)
+        console.error('❌ Error response:', error.response?.data)
+        Alert.alert('Error', 'Failed to load booking details')
+      } finally {
+        setLoadingBooking(false)
+      }
+    }
+
+    fetchBookingDetails()
+  }, [bookingId, userToken])
+
+  // Demo Khalti Payment Integration
+  const handleKhaltiPayment = async () => {
+    setIsLoading(true)
+
+    try {
+      // Simulate Khalti payment process
+      Alert.alert(
+        'Khalti Payment',
+        'Redirecting to Khalti payment gateway...',
+        [
+          {
+            text: 'Cancel',
+            style: 'cancel',
+            onPress: () => setIsLoading(false),
+          },
+          {
+            text: 'Continue',
+            onPress: async () => {
+              // Demo: Simulate payment success
+              setTimeout(() => {
+                Alert.alert(
+                  'Payment Successful!',
+                  'Your payment has been processed successfully through Khalti.',
+                  [
+                    {
+                      text: 'OK',
+                      onPress: () => {
+                        // Navigate back to tab navigator
+                        navigation.navigate('TabNavigator')
+                      },
+                    },
+                  ]
+                )
+                setIsLoading(false)
+              }, 2000)
+            },
+          },
+        ]
+      )
+    } catch (error) {
+      Alert.alert('Payment Error', 'Failed to process Khalti payment')
+      setIsLoading(false)
+    }
+  }
+
+  // Demo eSewa Payment Integration
+  const handleEsewaPayment = async () => {
+    setIsLoading(true)
+
+    try {
+      // Simulate eSewa payment process
+      Alert.alert('eSewa Payment', 'Redirecting to eSewa payment gateway...', [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+          onPress: () => setIsLoading(false),
+        },
+        {
+          text: 'Continue',
+          onPress: async () => {
+            // Demo: Simulate payment success
+            setTimeout(() => {
+              Alert.alert(
+                'Payment Successful!',
+                'Your payment has been processed successfully through eSewa.',
+                [
+                  {
+                    text: 'OK',
+                    onPress: () => {
+                      // Navigate back to tab navigator
+                      navigation.navigate('TabNavigator')
+                    },
+                  },
+                ]
+              )
+              setIsLoading(false)
+            }, 2000)
+          },
+        },
+      ])
+    } catch (error) {
+      Alert.alert('Payment Error', 'Failed to process eSewa payment')
+      setIsLoading(false)
+    }
+  }
+
+  const handlePayment = () => {
+    if (selectedMethod === 'khalti') {
+      handleKhaltiPayment()
+    } else if (selectedMethod === 'esewa') {
+      handleEsewaPayment()
+    }
+  }
+
+  const formatDate = (dateString) => {
+    if (!dateString) return 'N/A'
+    const date = new Date(dateString)
+    return date.toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+    })
+  }
+
+  if (loadingBooking) {
+    return (
+      <SafeAreaView className="flex-1 bg-orange-50">
+        <View className="flex-1 justify-center items-center">
+          <ActivityIndicator size="large" color="#f97316" />
+          <Text className="mt-4 text-gray-600">Loading booking details...</Text>
+        </View>
+      </SafeAreaView>
+    )
   }
 
   return (
@@ -57,45 +213,98 @@ function PaymentScreen({ navigation, route }) {
       <ScrollView className="flex-1">
         {/* Booking Summary */}
         <View className="m-4 p-4 bg-white rounded-xl shadow">
-          <Text className="text-lg font-bold text-gray-800 mb-2">
+          <Text className="text-lg font-bold text-gray-800 mb-3">
             Booking Summary
           </Text>
-          <Text className="text-gray-800 font-medium">
-            {bookingDetails.name}
-          </Text>
-          <View className="flex-row items-center mt-1">
-            <Ionicons name="calendar-outline" size={16} color="#9ca3af" />
-            <Text className="ml-1 text-gray-500">{bookingDetails.date}</Text>
-          </View>
-          <View className="flex-row items-center mt-1">
-            <Ionicons name="people-outline" size={16} color="#9ca3af" />
-            <Text className="ml-1 text-gray-500">
-              {bookingDetails.guests} Guests
-            </Text>
-          </View>
 
-          <View className="border-t border-gray-100 my-3" />
+          {bookingData ? (
+            <>
+              {console.log('🎯 Rendering booking data:', bookingData)}
+              <View className="mb-3">
+                <Text className="text-gray-600 text-sm">Booking ID</Text>
+                <Text className="text-gray-800 font-medium">
+                  {bookingData._id}
+                </Text>
+              </View>
 
-          <View className="flex-row justify-between mb-1">
-            <Text className="text-gray-600">Base Price</Text>
-            <Text className="text-gray-800">₹{bookingDetails.price}</Text>
-          </View>
-          <View className="flex-row justify-between mb-1">
-            <Text className="text-gray-600">Taxes & Fees</Text>
-            <Text className="text-gray-800">₹{bookingDetails.tax}</Text>
-          </View>
-          <View className="flex-row justify-between mt-2">
-            <Text className="font-bold text-gray-800">Total Amount</Text>
-            <Text className="font-bold text-orange-500">
-              ₹{bookingDetails.total}
-            </Text>
-          </View>
+              <View className="mb-3">
+                <Text className="text-gray-600 text-sm">Customer Name</Text>
+                <Text className="text-gray-800 font-medium">
+                  {bookingData.customerName}
+                </Text>
+              </View>
+
+              <View className="mb-3">
+                <Text className="text-gray-600 text-sm">Email</Text>
+                <Text className="text-gray-800 font-medium">
+                  {bookingData.customerEmail}
+                </Text>
+              </View>
+
+              <View className="mb-3">
+                <Text className="text-gray-600 text-sm">Phone</Text>
+                <Text className="text-gray-800 font-medium">
+                  {bookingData.customerPhone || 'N/A'}
+                </Text>
+              </View>
+
+              <View className="mb-3">
+                <Text className="text-gray-600 text-sm">Trip Dates</Text>
+                <Text className="text-gray-800 font-medium">
+                  {formatDate(bookingData.startDate)} -{' '}
+                  {formatDate(bookingData.endDate)}
+                </Text>
+              </View>
+
+              <View className="mb-3">
+                <Text className="text-gray-600 text-sm">Participants</Text>
+                <Text className="text-gray-800 font-medium">
+                  {bookingData.participants} people
+                </Text>
+              </View>
+
+              {bookingData.specialRequests && (
+                <View className="mb-3">
+                  <Text className="text-gray-600 text-sm">
+                    Special Requests
+                  </Text>
+                  <Text className="text-gray-800 font-medium">
+                    {bookingData.specialRequests}
+                  </Text>
+                </View>
+              )}
+
+              <View className="border-t border-gray-100 my-3" />
+
+              <View className="flex-row justify-between mb-1">
+                <Text className="text-gray-600">Base Price</Text>
+                <Text className="text-gray-800">
+                  NPR {bookingData.totalPrice}
+                </Text>
+              </View>
+              <View className="flex-row justify-between mb-1">
+                <Text className="text-gray-600">Service Fee</Text>
+                <Text className="text-gray-800">NPR 0</Text>
+              </View>
+              <View className="flex-row justify-between mt-2">
+                <Text className="font-bold text-gray-800">Total Amount</Text>
+                <Text className="font-bold text-orange-500">
+                  NPR {bookingData.totalPrice}
+                </Text>
+              </View>
+            </>
+          ) : (
+            <View className="flex-row justify-between mb-1">
+              <Text className="text-gray-600">Total Amount</Text>
+              <Text className="text-gray-800">NPR {amount || 0}</Text>
+            </View>
+          )}
         </View>
 
         {/* Payment Methods */}
         <View className="mx-4 mb-4">
-          <Text className="text-lg font-bold text-gray-800 mb-2">
-            Payment Method
+          <Text className="text-lg font-bold text-gray-800 mb-3">
+            Select Payment Method
           </Text>
 
           {paymentMethods.map((method) => (
@@ -109,167 +318,126 @@ function PaymentScreen({ navigation, route }) {
               onPress={() => setSelectedMethod(method.id)}
             >
               <View
-                className={`w-10 h-10 rounded-full items-center justify-center ${
+                className={`w-12 h-12 rounded-full items-center justify-center ${
                   selectedMethod === method.id ? 'bg-orange-100' : 'bg-gray-100'
                 }`}
+                style={{
+                  backgroundColor:
+                    selectedMethod === method.id
+                      ? method.color + '20'
+                      : '#f3f4f6',
+                }}
               >
                 <Ionicons
                   name={method.icon}
-                  size={20}
-                  color={selectedMethod === method.id ? '#f97316' : '#6b7280'}
+                  size={24}
+                  color={
+                    selectedMethod === method.id ? method.color : '#6b7280'
+                  }
                 />
               </View>
-              <Text
-                className={`ml-3 font-medium ${
-                  selectedMethod === method.id
-                    ? 'text-orange-500'
-                    : 'text-gray-800'
-                }`}
-              >
-                {method.name}
-              </Text>
+              <View className="ml-3 flex-1">
+                <Text
+                  className={`font-bold text-lg ${
+                    selectedMethod === method.id
+                      ? 'text-orange-500'
+                      : 'text-gray-800'
+                  }`}
+                >
+                  {method.name}
+                </Text>
+                <Text className="text-gray-500 text-sm">
+                  {method.description}
+                </Text>
+              </View>
               {selectedMethod === method.id && (
-                <Ionicons
-                  name="checkmark-circle"
-                  size={20}
-                  color="#f97316"
-                  className="ml-auto"
-                />
+                <Ionicons name="checkmark-circle" size={24} color="#f97316" />
               )}
             </TouchableOpacity>
           ))}
         </View>
 
-        {/* Card Details Form */}
-        {selectedMethod === 'card' && (
+        {/* Payment Method Details */}
+        {selectedMethod === 'khalti' && (
           <View className="mx-4 mb-6 p-4 bg-white rounded-xl shadow">
             <Text className="text-lg font-bold text-gray-800 mb-3">
-              Card Details
+              Khalti Payment Details
             </Text>
 
-            <View className="mb-4">
-              <Text className="text-gray-600 mb-1">Card Number</Text>
-              <TextInput
-                className="border border-gray-300 rounded-lg p-3 text-gray-800"
-                placeholder="1234 5678 9012 3456"
-                value={cardNumber}
-                onChangeText={(text) => setCardNumber(formatCardNumber(text))}
-                keyboardType="numeric"
-                maxLength={19}
-              />
-            </View>
-
-            <View className="mb-4">
-              <Text className="text-gray-600 mb-1">Cardholder Name</Text>
-              <TextInput
-                className="border border-gray-300 rounded-lg p-3 text-gray-800"
-                placeholder="John Doe"
-                value={cardName}
-                onChangeText={setCardName}
-              />
-            </View>
-
-            <View className="flex-row mb-4">
-              <View className="flex-1 mr-2">
-                <Text className="text-gray-600 mb-1">Expiry Date</Text>
-                <TextInput
-                  className="border border-gray-300 rounded-lg p-3 text-gray-800"
-                  placeholder="MM/YY"
-                  value={expiryDate}
-                  onChangeText={setExpiryDate}
-                  maxLength={5}
-                />
-              </View>
-              <View className="flex-1 ml-2">
-                <Text className="text-gray-600 mb-1">CVV</Text>
-                <TextInput
-                  className="border border-gray-300 rounded-lg p-3 text-gray-800"
-                  placeholder="123"
-                  value={cvv}
-                  onChangeText={setCvv}
-                  keyboardType="numeric"
-                  maxLength={3}
-                  secureTextEntry
-                />
-              </View>
+            <View className="bg-purple-50 p-3 rounded-lg mb-3">
+              <Text className="text-purple-800 text-sm">
+                • Fast and secure digital payments
+              </Text>
+              <Text className="text-purple-800 text-sm">
+                • Instant payment confirmation
+              </Text>
+              <Text className="text-purple-800 text-sm">
+                • No additional fees
+              </Text>
             </View>
 
             <View className="flex-row items-center">
-              <Ionicons name="lock-closed" size={16} color="#9ca3af" />
-              <Text className="ml-2 text-gray-500 text-sm">
-                Your payment information is secure
+              <Ionicons name="shield-checkmark" size={16} color="#5C2D91" />
+              <Text className="ml-2 text-purple-700 text-sm">
+                Secure payment powered by Khalti
               </Text>
             </View>
           </View>
         )}
 
-        {/* UPI Form */}
-        {selectedMethod === 'upi' && (
+        {selectedMethod === 'esewa' && (
           <View className="mx-4 mb-6 p-4 bg-white rounded-xl shadow">
             <Text className="text-lg font-bold text-gray-800 mb-3">
-              UPI Payment
+              eSewa Payment Details
             </Text>
 
-            <View className="mb-4">
-              <Text className="text-gray-600 mb-1">UPI ID</Text>
-              <TextInput
-                className="border border-gray-300 rounded-lg p-3 text-gray-800"
-                placeholder="yourname@upi"
-              />
+            <View className="bg-green-50 p-3 rounded-lg mb-3">
+              <Text className="text-green-800 text-sm">
+                • Nepal's leading digital wallet
+              </Text>
+              <Text className="text-green-800 text-sm">
+                • Instant payment processing
+              </Text>
+              <Text className="text-green-800 text-sm">
+                • Secure and reliable
+              </Text>
             </View>
 
             <View className="flex-row items-center">
-              <Ionicons
-                name="shield-checkmark-outline"
-                size={16}
-                color="#9ca3af"
-              />
-              <Text className="ml-2 text-gray-500 text-sm">
-                Secure UPI transaction
+              <Ionicons name="shield-checkmark" size={16} color="#60BB46" />
+              <Text className="ml-2 text-green-700 text-sm">
+                Secure payment powered by eSewa
               </Text>
             </View>
-          </View>
-        )}
-
-        {/* Digital Wallet Form */}
-        {selectedMethod === 'wallet' && (
-          <View className="mx-4 mb-6 p-4 bg-white rounded-xl shadow">
-            <Text className="text-lg font-bold text-gray-800 mb-3">
-              Select Wallet
-            </Text>
-
-            {['PayTM', 'PhonePe', 'Google Pay'].map((wallet, index) => (
-              <TouchableOpacity
-                key={index}
-                className="flex-row items-center p-3 border-b border-gray-100"
-              >
-                <View className="w-10 h-10 bg-gray-100 rounded-full items-center justify-center">
-                  <Text className="font-bold text-gray-700">
-                    {wallet.charAt(0)}
-                  </Text>
-                </View>
-                <Text className="ml-3 text-gray-800">{wallet}</Text>
-                <Ionicons
-                  name="chevron-forward"
-                  size={20}
-                  color="#9ca3af"
-                  className="ml-auto"
-                />
-              </TouchableOpacity>
-            ))}
           </View>
         )}
       </ScrollView>
 
       <View className="p-4 border-t border-gray-200 bg-white">
         <TouchableOpacity
-          className="bg-orange-500 py-3 rounded-lg items-center"
-          onPress={() => navigation.navigate('PaymentConfirmation')}
+          className={`py-4 rounded-lg items-center ${
+            isLoading ? 'bg-gray-400' : 'bg-orange-500'
+          }`}
+          onPress={handlePayment}
+          disabled={isLoading}
         >
-          <Text className="text-white font-bold text-lg">
-            Pay ₹{bookingDetails.total}
-          </Text>
+          {isLoading ? (
+            <View className="flex-row items-center">
+              <ActivityIndicator size="small" color="white" />
+              <Text className="text-white font-bold text-lg ml-2">
+                Processing...
+              </Text>
+            </View>
+          ) : (
+            <Text className="text-white font-bold text-lg">
+              Pay NPR {bookingData?.totalPrice || amount || 0}
+            </Text>
+          )}
         </TouchableOpacity>
+
+        <Text className="text-center text-gray-500 text-xs mt-2">
+          By proceeding, you agree to our terms and conditions
+        </Text>
       </View>
     </SafeAreaView>
   )

@@ -346,7 +346,7 @@ function CompanyItinerariesScreen() {
             days
           </Text>
           <Text style={styles.trekMetaItem}>
-            <Ionicons name="cash" size={14} color="#666" /> ${item.price}
+            <Ionicons name="cash" size={14} color="#666" /> NPR {item.price}
           </Text>
           <Text
             style={[
@@ -448,7 +448,7 @@ function CompanyItinerariesScreen() {
               </View>
 
               <View style={styles.halfInput}>
-                <Text style={styles.inputLabel}>Price ($) *</Text>
+                <Text style={styles.inputLabel}>Price (NPR) *</Text>
                 <TextInput
                   style={styles.input}
                   placeholder="Price"

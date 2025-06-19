@@ -3,14 +3,14 @@ import axios from 'axios'
 export const getRecommendedTreks = async (userId, token) => {
   try {
     const response = await axios.get(
-      'http://192.168.1.69:5000/api/trek/allitinerary',
+      `http://10.0.2.2:5000/api/recommendations?userId=${userId}&type=recommendations&limit=5`,
       {
         headers: {
           Authorization: `Bearer ${token}`,
         },
       }
     )
-    return response.data.success ? response.data.treks.slice(0, 5) : []
+    return response.data.success ? response.data.data : []
   } catch (error) {
     console.error('Error fetching recommendations:', error)
     return []
@@ -20,14 +20,14 @@ export const getRecommendedTreks = async (userId, token) => {
 export const getTrendingTreks = async (token) => {
   try {
     const response = await axios.get(
-      'http://192.168.1.69:5000/api/trek/allitinerary',
+      'http://10.0.2.2:5000/api/recommendations?type=trending&limit=5',
       {
         headers: {
           Authorization: `Bearer ${token}`,
         },
       }
     )
-    return response.data.success ? response.data.treks.slice(5, 10) : []
+    return response.data.success ? response.data.data : []
   } catch (error) {
     console.error('Error fetching trending treks:', error)
     return []
@@ -37,14 +37,14 @@ export const getTrendingTreks = async (token) => {
 export const getPopularDestinations = async (token) => {
   try {
     const response = await axios.get(
-      'http://192.168.1.69:5000/api/trek/allitinerary',
+      'http://10.0.2.2:5000/api/recommendations?type=popular-destinations&limit=5',
       {
         headers: {
           Authorization: `Bearer ${token}`,
         },
       }
     )
-    return response.data.success ? response.data.treks.slice(10, 15) : []
+    return response.data.success ? response.data.data : []
   } catch (error) {
     console.error('Error fetching popular destinations:', error)
     return []

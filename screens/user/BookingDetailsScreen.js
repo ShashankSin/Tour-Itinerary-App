@@ -14,6 +14,26 @@ import {
 } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 
+const mockBookings = [
+  {
+    id: '1',
+    name: 'Mount Everest Trek',
+    location: 'Nepal',
+    companyName: 'Adventure Tours',
+    totalPrice: 12000,
+    image: 'https://example.com/mount-everest.jpg',
+    startDate: new Date('2023-10-01'),
+    endDate: new Date('2023-10-10'),
+    participants: 2,
+    specialRequests: 'Need extra oxygen',
+    status: 'confirmed',
+    paymentStatus: 'paid',
+    paymentMethod: 'Credit Card',
+    trekId: '1',
+  },
+  // Add more mock bookings as needed
+]
+
 function BookingDetailScreen({ route, navigation }) {
   const { bookingId } = route.params
   const [booking, setBooking] = useState(null)
@@ -22,44 +42,6 @@ function BookingDetailScreen({ route, navigation }) {
   useEffect(() => {
     // In a real app, you would fetch the booking data from your API
     // This is just mock data for demonstration
-    const mockBookings = {
-      1: {
-        id: '1',
-        trekId: 'trek123',
-        companyId: 'company456',
-        name: 'Annapurna Base Camp Trek',
-        startDate: new Date('2023-10-15'),
-        endDate: new Date('2023-10-25'),
-        image:
-          'https://images.unsplash.com/photo-1544735716-392fe2489ffa?ixlib=rb-1.2.1&auto=format&fit=crop&w=1000&q=80',
-        status: 'confirmed',
-        paymentStatus: 'paid',
-        paymentMethod: 'card',
-        participants: 2,
-        totalPrice: 32500,
-        specialRequests: 'Vegetarian meals required',
-        companyName: 'Nepal Trekking Adventures',
-        location: 'Annapurna Region, Nepal',
-      },
-      2: {
-        id: '2',
-        trekId: 'trek789',
-        companyId: 'company456',
-        name: 'Pokhara Paragliding',
-        startDate: new Date('2023-12-05'),
-        endDate: new Date('2023-12-07'),
-        image:
-          'https://images.unsplash.com/photo-1503220317375-aaad61436b1b?ixlib=rb-1.2.1&auto=format&fit=crop&w=1000&q=80',
-        status: 'pending',
-        paymentStatus: 'pending',
-        paymentMethod: 'paypal',
-        participants: 1,
-        totalPrice: 8500,
-        specialRequests: '',
-        companyName: 'Pokhara Adventure Sports',
-        location: 'Pokhara, Nepal',
-      },
-    }
 
     // Simulate API call
     setTimeout(() => {
@@ -369,47 +351,57 @@ function BookingDetailScreen({ route, navigation }) {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#fff7ed', // orange-50 equivalent
+    backgroundColor: '#fef7ed',
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#fff7ed', // orange-50 equivalent
+    backgroundColor: '#fef7ed',
   },
   errorContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 16,
-    backgroundColor: '#fff7ed', // orange-50 equivalent
+    padding: 20,
+    backgroundColor: '#fef7ed',
   },
   errorTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#1f2937', // gray-800 equivalent
-    marginBottom: 8,
+    fontSize: 24,
+    fontWeight: '700',
+    color: '#1f2937',
+    marginBottom: 12,
+    textAlign: 'center',
   },
   errorMessage: {
     fontSize: 16,
-    color: '#6b7280', // gray-500 equivalent
+    color: '#6b7280',
     textAlign: 'center',
-    marginBottom: 24,
+    marginBottom: 32,
+    lineHeight: 24,
   },
   header: {
     backgroundColor: '#ffffff',
-    padding: 16,
+    paddingHorizontal: 20,
+    paddingVertical: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#f3f4f6', // gray-100 equivalent
+    borderBottomColor: '#fed7aa',
+    shadowColor: '#f97316',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
   },
   backLink: {
     flexDirection: 'row',
     alignItems: 'center',
+    paddingVertical: 8,
   },
   backLinkText: {
-    marginLeft: 4,
+    marginLeft: 8,
     fontSize: 16,
-    color: '#f97316', // orange-500 equivalent
+    color: '#f97316',
+    fontWeight: '600',
   },
   container: {
     flex: 1,
@@ -417,161 +409,245 @@ const styles = StyleSheet.create({
   },
   card: {
     backgroundColor: '#ffffff',
-    borderRadius: 12,
+    borderRadius: 24,
     overflow: 'hidden',
-    marginBottom: 16,
-    shadowColor: '#000',
+    marginBottom: 20,
+    shadowColor: '#f97316',
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.2,
+    shadowRadius: 16,
+    elevation: 12,
+  },
+  heroImage: {
+    width: '100%',
+    height: 260,
+  },
+  cardContent: {
+    padding: 28,
+  },
+  titleSection: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 28,
+    paddingBottom: 24,
+    borderBottomWidth: 2,
+    borderBottomColor: '#fed7aa',
+  },
+  title: {
+    fontSize: 26,
+    fontWeight: '800',
+    color: '#1f2937',
+    marginBottom: 8,
+    lineHeight: 34,
+  },
+  location: {
+    fontSize: 18,
+    color: '#f97316',
+    fontWeight: '600',
+    marginBottom: 6,
+  },
+  company: {
+    fontSize: 14,
+    color: '#6b7280',
+    marginTop: 4,
+    fontStyle: 'italic',
+  },
+  priceContainer: {
+    alignItems: 'flex-end',
+    backgroundColor: 'linear-gradient(135deg, #fff7ed 0%, #fed7aa 100%)',
+    paddingHorizontal: 18,
+    paddingVertical: 16,
+    borderRadius: 16,
+    borderWidth: 2,
+    borderColor: '#fed7aa',
+    shadowColor: '#f97316',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  price: {
+    fontSize: 26,
+    fontWeight: '800',
+    color: '#f97316',
+  },
+  priceLabel: {
+    fontSize: 12,
+    color: '#6b7280',
+    marginTop: 4,
+    fontWeight: '600',
+  },
+  detailsGrid: {
+    marginBottom: 28,
+  },
+  detailItem: {
+    flexDirection: 'row',
+    marginBottom: 24,
+    backgroundColor: '#fefbf7',
+    padding: 20,
+    borderRadius: 20,
+    borderLeftWidth: 5,
+    borderLeftColor: '#f97316',
+    shadowColor: '#f97316',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.12,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  detailIcon: {
+    marginRight: 18,
+    marginTop: 4,
+    backgroundColor: '#fff7ed',
+    padding: 10,
+    borderRadius: 12,
+    shadowColor: '#f97316',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 2,
   },
-  heroImage: {
-    width: '100%',
-    height: 200,
-  },
-  cardContent: {
-    padding: 16,
-  },
-  titleSection: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 16,
-  },
-  title: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#1f2937', // gray-800 equivalent
-    marginBottom: 4,
-  },
-  location: {
-    fontSize: 16,
-    color: '#4b5563', // gray-600 equivalent
-  },
-  company: {
-    fontSize: 14,
-    color: '#6b7280', // gray-500 equivalent
-    marginTop: 2,
-  },
-  priceContainer: {
-    alignItems: 'flex-end',
-  },
-  price: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#f97316', // orange-500 equivalent
-  },
-  priceLabel: {
-    fontSize: 12,
-    color: '#6b7280', // gray-500 equivalent
-  },
-  detailsGrid: {
-    marginBottom: 16,
-  },
-  detailItem: {
-    flexDirection: 'row',
-    marginBottom: 16,
-  },
-  detailIcon: {
-    marginRight: 12,
-    marginTop: 2,
-  },
   detailTitle: {
     fontSize: 16,
-    fontWeight: '500',
-    color: '#4b5563', // gray-600 equivalent
-    marginBottom: 4,
+    fontWeight: '700',
+    color: '#374151',
+    marginBottom: 8,
   },
   detailText: {
-    fontSize: 15,
-    color: '#1f2937', // gray-800 equivalent
+    fontSize: 16,
+    color: '#1f2937',
+    fontWeight: '600',
+    lineHeight: 24,
   },
   detailSubtext: {
     fontSize: 14,
-    color: '#6b7280', // gray-500 equivalent
-    marginTop: 2,
+    color: '#6b7280',
+    marginTop: 6,
+    fontWeight: '500',
   },
   badge: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
     alignSelf: 'flex-start',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    elevation: 3,
   },
   badgeText: {
-    fontSize: 12,
-    fontWeight: '600',
+    fontSize: 13,
+    fontWeight: '800',
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
   },
   paymentRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    flexWrap: 'wrap',
   },
   paymentMethod: {
-    marginLeft: 8,
+    marginLeft: 14,
     fontSize: 14,
-    color: '#6b7280', // gray-500 equivalent
+    color: '#6b7280',
+    fontWeight: '600',
   },
   bookingId: {
     fontSize: 14,
     fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
-    color: '#1f2937', // gray-800 equivalent
+    color: '#1f2937',
+    backgroundColor: '#f3f4f6',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    overflow: 'hidden',
+    fontWeight: '600',
   },
   actionSection: {
-    marginTop: 16,
-    paddingTop: 16,
-    borderTopWidth: 1,
-    borderTopColor: '#f3f4f6', // gray-100 equivalent
+    marginTop: 28,
+    paddingTop: 28,
+    borderTopWidth: 2,
+    borderTopColor: '#fed7aa',
   },
   actionButtons: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    gap: 16,
   },
   modifyButton: {
     flex: 1,
-    borderWidth: 1,
-    borderColor: '#f97316', // orange-500 equivalent
-    borderRadius: 8,
-    padding: 12,
+    backgroundColor: '#fff7ed',
+    borderWidth: 2,
+    borderColor: '#f97316',
+    borderRadius: 16,
+    paddingVertical: 18,
+    paddingHorizontal: 24,
     alignItems: 'center',
-    marginRight: 8,
+    shadowColor: '#f97316',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 6,
   },
   modifyButtonText: {
-    color: '#f97316', // orange-500 equivalent
+    color: '#f97316',
     fontSize: 16,
-    fontWeight: '500',
+    fontWeight: '800',
+    letterSpacing: 0.5,
   },
   cancelButton: {
-    flex: 1,
-    borderWidth: 1,
-    borderColor: '#ef4444', // red-500 equivalent
-    borderRadius: 8,
-    padding: 12,
+    backgroundColor: '#fef2f2',
+    borderWidth: 2,
+    borderColor: '#ef4444',
+    borderRadius: 16,
+    paddingVertical: 18,
+    paddingHorizontal: 24,
     alignItems: 'center',
-    marginLeft: 8,
+    shadowColor: '#ef4444',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 6,
   },
   cancelButtonText: {
-    color: '#ef4444', // red-500 equivalent
+    color: '#ef4444',
     fontSize: 16,
-    fontWeight: '500',
+    fontWeight: '800',
+    letterSpacing: 0.5,
   },
   reviewButton: {
-    backgroundColor: '#f97316', // orange-500 equivalent
-    borderRadius: 8,
-    padding: 12,
+    backgroundColor: '#f97316',
+    borderRadius: 16,
+    paddingVertical: 20,
+    paddingHorizontal: 28,
     alignItems: 'center',
+    shadowColor: '#f97316',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.4,
+    shadowRadius: 12,
+    elevation: 8,
   },
   reviewButtonText: {
     color: '#ffffff',
-    fontSize: 16,
-    fontWeight: '500',
+    fontSize: 18,
+    fontWeight: '800',
+    letterSpacing: 0.5,
   },
   backButton: {
     flexDirection: 'row',
     alignItems: 'center',
+    backgroundColor: '#fff7ed',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#fed7aa',
   },
   backButtonText: {
-    marginLeft: 4,
+    marginLeft: 8,
     fontSize: 16,
-    color: '#f97316', // orange-500 equivalent
+    color: '#f97316',
+    fontWeight: '600',
   },
 })
 

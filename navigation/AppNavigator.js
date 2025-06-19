@@ -54,6 +54,7 @@ const UserBottomTabs = () => {
             Home: focused ? 'home' : 'home-outline',
             Explore: focused ? 'search' : 'search-outline',
             Wishlist: focused ? 'heart' : 'heart-outline',
+            MyBookings: focused ? 'calendar' : 'calendar-outline',
             Profile: focused ? 'person' : 'person-outline',
           }
           return <Ionicons name={icons[route.name]} size={size} color={color} />
@@ -65,6 +66,7 @@ const UserBottomTabs = () => {
       <Tab.Screen name="Home" component={HomeScreen} />
       <Tab.Screen name="Explore" component={ExploreScreen} />
       <Tab.Screen name="Wishlist" component={WishlistScreen} />
+      <Tab.Screen name="MyBookings" component={MyBookingsScreen} />
       <Tab.Screen name="Profile" component={ProfileScreen} />
     </Tab.Navigator>
   )
@@ -146,7 +148,6 @@ const MainStack = () => {
       <Stack.Screen name="CreateItinerary" component={CreateItineraryScreen} />
       <Stack.Screen name="EditItinerary" component={EditItineraryScreen} />
       <Stack.Screen name="BookingDetail" component={BookingDetailScreen} />
-      <Stack.Screen name="MyBookings" component={MyBookingsScreen} />
     </Stack.Navigator>
   )
 }

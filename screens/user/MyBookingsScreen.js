@@ -1,143 +1,402 @@
+import React, { useState, useEffect } from 'react'
 import {
   View,
   Text,
   ScrollView,
   TouchableOpacity,
   Image,
-  StyleSheet,
   SafeAreaView,
+  ActivityIndicator,
+  Alert,
+  RefreshControl,
 } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
+import axios from 'axios'
+import AsyncStorage from '@react-native-async-storage/async-storage'
 
 function MyBookingsScreen({ navigation }) {
-  // Sample data - in a real app, you would fetch this from your API
-  const bookings = [
-    {
-      id: '1',
-      trekId: 'trek123',
-      companyId: 'company456',
-      name: 'Annapurna Base Camp Trek',
-      startDate: new Date('2023-10-15'),
-      endDate: new Date('2023-10-25'),
-      image:
-        'https://images.unsplash.com/photo-1544735716-392fe2489ffa?ixlib=rb-1.2.1&auto=format&fit=crop&w=1000&q=80',
-      location: 'Annapurna Region, Nepal',
-      status: 'confirmed',
-      paymentStatus: 'paid',
-      paymentMethod: 'card',
-      participants: 2,
-      totalPrice: 32500,
-    },
-    {
-      id: '2',
-      trekId: 'trek789',
-      companyId: 'company456',
-      name: 'Pokhara Paragliding',
-      startDate: new Date('2023-12-05'),
-      endDate: new Date('2023-12-07'),
-      image:
-        'https://images.unsplash.com/photo-1503220317375-aaad61436b1b?ixlib=rb-1.2.1&auto=format&fit=crop&w=1000&q=80',
-      location: 'Pokhara, Nepal',
-      status: 'pending',
-      paymentStatus: 'pending',
-      paymentMethod: 'paypal',
-      participants: 1,
-      totalPrice: 8500,
-    },
-  ]
+  const [bookings, setBookings] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
+  const [error, setError] = useState(null)
+  const [selectedStatus, setSelectedStatus] = useState('all')
+
+  // Fetch bookings from backend
+  const fetchBookings = async () => {
+    try {
+      setError(null)
+      const token = await AsyncStorage.getItem('token')
+
+      if (!token) {
+        setError('Authentication required')
+        setLoading(false)
+        return
+      }
+
+      console.log('🔍 Fetching user bookings...')
+      const response = await axios.get(
+        'http://10.0.2.2:5000/api/booking/user/bookings',
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      )
+
+      console.log('✅ Bookings response:', response.data)
+
+      if (response.data.success) {
+        setBookings(response.data.bookings || [])
+      } else {
+        setError('Failed to load bookings')
+      }
+    } catch (error) {
+      console.error('❌ Error fetching bookings:', error)
+      setError('Failed to load bookings. Please try again.')
+    } finally {
+      setLoading(false)
+      setRefreshing(false)
+    }
+  }
+
+  // Load bookings on component mount
+  useEffect(() => {
+    fetchBookings()
+  }, [])
+
+  // Pull to refresh
+  const onRefresh = () => {
+    setRefreshing(true)
+    fetchBookings()
+  }
+
+  // Filter bookings by status
+  const filteredBookings = bookings.filter((booking) => {
+    if (selectedStatus === 'all') return true
+    return booking.status === selectedStatus
+  })
+
+  // Get status counts
+  const getStatusCounts = () => {
+    const counts = {
+      all: bookings.length,
+      pending: bookings.filter((b) => b.status === 'pending').length,
+      confirmed: bookings.filter((b) => b.status === 'confirmed').length,
+      completed: bookings.filter((b) => b.status === 'completed').length,
+      cancelled: bookings.filter((b) => b.status === 'cancelled').length,
+    }
+    return counts
+  }
+
+  const statusCounts = getStatusCounts()
 
   const formatDateRange = (startDate, endDate) => {
+    if (!startDate || !endDate) return 'Dates not available'
+
+    const start = new Date(startDate)
+    const end = new Date(endDate)
+
+    if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+      return 'Invalid dates'
+    }
+
     const options = { month: 'short', day: 'numeric' }
-    const start = startDate.toLocaleDateString('en-US', options)
-    const end = endDate.toLocaleDateString('en-US', options)
-    const year = endDate.getFullYear()
-    return `${start} - ${end}, ${year}`
+    const startStr = start.toLocaleDateString('en-US', options)
+    const endStr = end.toLocaleDateString('en-US', options)
+    const year = end.getFullYear()
+    return `${startStr} - ${endStr}, ${year}`
   }
 
   const getStatusBadge = (status) => {
-    let backgroundColor, textColor
+    let backgroundColor, textColor, icon
 
     switch (status) {
       case 'confirmed':
-        backgroundColor = '#dcfce7' // green-100 equivalent
-        textColor = '#166534' // green-800 equivalent
+        backgroundColor = 'bg-green-100'
+        textColor = 'text-green-800'
+        icon = 'checkmark-circle'
         break
       case 'pending':
-        backgroundColor = '#fef9c3' // yellow-100 equivalent
-        textColor = '#854d0e' // yellow-800 equivalent
+        backgroundColor = 'bg-yellow-100'
+        textColor = 'text-yellow-800'
+        icon = 'time'
         break
       case 'cancelled':
-        backgroundColor = '#fee2e2' // red-100 equivalent
-        textColor = '#991b1b' // red-800 equivalent
+        backgroundColor = 'bg-red-100'
+        textColor = 'text-red-800'
+        icon = 'close-circle'
         break
       case 'completed':
-        backgroundColor = '#dbeafe' // blue-100 equivalent
-        textColor = '#1e40af' // blue-800 equivalent
+        backgroundColor = 'bg-blue-100'
+        textColor = 'text-blue-800'
+        icon = 'trophy'
         break
       default:
-        backgroundColor = '#f3f4f6' // gray-100 equivalent
-        textColor = '#4b5563' // gray-600 equivalent
+        backgroundColor = 'bg-gray-100'
+        textColor = 'text-gray-600'
+        icon = 'help-circle'
     }
 
-    return { backgroundColor, textColor }
+    return { backgroundColor, textColor, icon }
   }
+
+  const getPaymentStatusBadge = (paymentStatus) => {
+    let backgroundColor, textColor, icon
+
+    switch (paymentStatus) {
+      case 'paid':
+        backgroundColor = 'bg-green-100'
+        textColor = 'text-green-800'
+        icon = 'card'
+        break
+      case 'pending':
+        backgroundColor = 'bg-yellow-100'
+        textColor = 'text-yellow-800'
+        icon = 'time'
+        break
+      case 'refunded':
+        backgroundColor = 'bg-blue-100'
+        textColor = 'text-blue-800'
+        icon = 'refresh'
+        break
+      default:
+        backgroundColor = 'bg-gray-100'
+        textColor = 'text-gray-600'
+        icon = 'help-circle'
+    }
+
+    return { backgroundColor, textColor, icon }
+  }
+
+  const renderStatusFilter = () => (
+    <View>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        className="px-5 py-5 bg-white border-b border-slate-200 shadow-sm"
+        contentContainerStyle={{ gap: 12, paddingRight: 20 }}
+      >
+        <TouchableOpacity
+          className={`flex-row items-center px-4 py-3 border-2 rounded-full bg-white shadow-sm ${
+            selectedStatus === 'all'
+              ? 'bg-orange-500 border-orange-500 shadow-orange-500/30'
+              : 'border-slate-200'
+          }`}
+          onPress={() => setSelectedStatus('all')}
+        >
+          <Ionicons
+            name={selectedStatus === 'all' ? 'apps' : 'apps-outline'}
+            size={16}
+            color={selectedStatus === 'all' ? '#ffffff' : '#f97316'}
+          />
+          <Text
+            className={`ml-2 text-sm font-semibold text-center ${
+              selectedStatus === 'all'
+                ? 'text-white font-bold'
+                : 'text-slate-500'
+            }`}
+          >
+            All ({statusCounts.all})
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          className={`flex-row items-center px-4 py-3 border-2 rounded-full bg-white shadow-sm ${
+            selectedStatus === 'pending'
+              ? 'bg-amber-500 border-amber-500 shadow-amber-500/30'
+              : 'border-slate-200'
+          }`}
+          onPress={() => setSelectedStatus('pending')}
+        >
+          <Ionicons
+            name={selectedStatus === 'pending' ? 'time' : 'time-outline'}
+            size={16}
+            color={selectedStatus === 'pending' ? '#ffffff' : '#f59e0b'}
+          />
+          <Text
+            className={`ml-2 text-sm font-semibold text-center ${
+              selectedStatus === 'pending'
+                ? 'text-white font-bold'
+                : 'text-slate-500'
+            }`}
+          >
+            Pending ({statusCounts.pending})
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          className={`flex-row items-center px-4 py-3 border-2 rounded-full bg-white shadow-sm ${
+            selectedStatus === 'confirmed'
+              ? 'bg-emerald-500 border-emerald-500 shadow-emerald-500/30'
+              : 'border-slate-200'
+          }`}
+          onPress={() => setSelectedStatus('confirmed')}
+        >
+          <Ionicons
+            name={
+              selectedStatus === 'confirmed'
+                ? 'checkmark-circle'
+                : 'checkmark-circle-outline'
+            }
+            size={16}
+            color={selectedStatus === 'confirmed' ? '#ffffff' : '#10b981'}
+          />
+          <Text
+            className={`ml-2 text-sm font-semibold text-center ${
+              selectedStatus === 'confirmed'
+                ? 'text-white font-bold'
+                : 'text-slate-500'
+            }`}
+          >
+            Confirmed ({statusCounts.confirmed})
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          className={`flex-row items-center px-4 py-3 border-2 rounded-full bg-white shadow-sm ${
+            selectedStatus === 'completed'
+              ? 'bg-blue-500 border-blue-500 shadow-blue-500/30'
+              : 'border-slate-200'
+          }`}
+          onPress={() => setSelectedStatus('completed')}
+        >
+          <Ionicons
+            name={selectedStatus === 'completed' ? 'trophy' : 'trophy-outline'}
+            size={16}
+            color={selectedStatus === 'completed' ? '#ffffff' : '#3b82f6'}
+          />
+          <Text
+            className={`ml-2 text-sm font-semibold text-center ${
+              selectedStatus === 'completed'
+                ? 'text-white font-bold'
+                : 'text-slate-500'
+            }`}
+          >
+            Completed ({statusCounts.completed})
+          </Text>
+        </TouchableOpacity>
+      </ScrollView>
+    </View>
+  )
 
   const renderBookingCard = (booking) => {
     const statusStyle = getStatusBadge(booking.status)
+    const paymentStatusStyle = getPaymentStatusBadge(booking.paymentStatus)
+
+    // Get trek image from populated trek data or use default
+    const trekImage =
+      booking.trekId?.images?.[0] ||
+      'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=800&h=600&fit=crop'
+    const trekTitle = booking.trekId?.title || 'Trek Name Not Available'
+    const trekLocation = booking.trekId?.location || 'Location Not Available'
 
     return (
       <TouchableOpacity
-        key={booking.id}
-        style={styles.card}
+        key={booking._id}
+        className="bg-white rounded-3xl overflow-hidden mb-5 shadow-lg border border-slate-100"
         onPress={() =>
-          navigation.navigate('BookingDetail', { bookingId: booking.id })
+          navigation.navigate('BookingDetail', { bookingId: booking._id })
         }
       >
-        <View style={styles.cardImageContainer}>
+        <View className="relative h-48">
           <Image
-            source={{ uri: booking.image }}
-            style={styles.cardImage}
+            source={{ uri: trekImage }}
+            className="w-full h-full"
             resizeMode="cover"
           />
-          <View
-            style={[
-              styles.statusBadge,
-              { backgroundColor: statusStyle.backgroundColor },
-            ]}
-          >
-            <Text style={[styles.statusText, { color: statusStyle.textColor }]}>
-              {booking.status.charAt(0).toUpperCase() + booking.status.slice(1)}
-            </Text>
+          <View className="absolute inset-0 bg-black/20" />
+          <View className="absolute top-4 right-4 flex-col gap-2">
+            <View
+              className={`px-3 py-1.5 rounded-full flex-row items-center gap-1.5 shadow-sm ${statusStyle.backgroundColor}`}
+            >
+              <Ionicons
+                name={statusStyle.icon}
+                size={12}
+                color={
+                  statusStyle.textColor === 'text-green-800'
+                    ? '#166534'
+                    : statusStyle.textColor === 'text-yellow-800'
+                    ? '#854d0e'
+                    : statusStyle.textColor === 'text-red-800'
+                    ? '#991b1b'
+                    : statusStyle.textColor === 'text-blue-800'
+                    ? '#1e40af'
+                    : '#4b5563'
+                }
+              />
+              <Text
+                className={`text-xs font-bold uppercase tracking-wide ${statusStyle.textColor}`}
+              >
+                {booking.status.charAt(0).toUpperCase() +
+                  booking.status.slice(1)}
+              </Text>
+            </View>
+            <View
+              className={`px-3 py-1.5 rounded-full flex-row items-center gap-1.5 shadow-sm ${paymentStatusStyle.backgroundColor}`}
+            >
+              <Ionicons
+                name={paymentStatusStyle.icon}
+                size={12}
+                color={
+                  paymentStatusStyle.textColor === 'text-green-800'
+                    ? '#166534'
+                    : paymentStatusStyle.textColor === 'text-yellow-800'
+                    ? '#854d0e'
+                    : paymentStatusStyle.textColor === 'text-blue-800'
+                    ? '#1e40af'
+                    : '#4b5563'
+                }
+              />
+              <Text
+                className={`text-xs font-bold uppercase tracking-wide ${paymentStatusStyle.textColor}`}
+              >
+                {booking.paymentStatus.charAt(0).toUpperCase() +
+                  booking.paymentStatus.slice(1)}
+              </Text>
+            </View>
           </View>
         </View>
 
-        <View style={styles.cardContent}>
-          <Text style={styles.cardTitle}>{booking.name}</Text>
+        <View className="p-5">
+          <Text className="text-xl font-bold text-slate-800 mb-3 leading-7">
+            {trekTitle}
+          </Text>
 
-          <View style={styles.infoRow}>
+          <View className="flex-row items-center mb-2.5 py-0.5">
             <Ionicons name="location-outline" size={16} color="#f97316" />
-            <Text style={styles.infoText}>{booking.location}</Text>
+            <Text className="ml-2.5 text-base text-slate-500 font-medium">
+              {trekLocation}
+            </Text>
           </View>
 
-          <View style={styles.infoRow}>
+          <View className="flex-row items-center mb-2.5 py-0.5">
             <Ionicons name="calendar-outline" size={16} color="#f97316" />
-            <Text style={styles.infoText}>
+            <Text className="ml-2.5 text-base text-slate-500 font-medium">
               {formatDateRange(booking.startDate, booking.endDate)}
             </Text>
           </View>
 
-          <View style={styles.infoRow}>
+          <View className="flex-row items-center mb-2.5 py-0.5">
             <Ionicons name="people-outline" size={16} color="#f97316" />
-            <Text style={styles.infoText}>
+            <Text className="ml-2.5 text-base text-slate-500 font-medium">
               {booking.participants}{' '}
               {booking.participants === 1 ? 'person' : 'people'}
             </Text>
           </View>
 
-          <View style={styles.priceContainer}>
-            <Text style={styles.priceLabel}>Total</Text>
-            <Text style={styles.priceValue}>
-              ₹{booking.totalPrice.toLocaleString()}
+          <View className="flex-row items-center mb-2.5 py-0.5">
+            <Ionicons name="card-outline" size={16} color="#f97316" />
+            <Text className="ml-2.5 text-base text-slate-500 font-medium">
+              Payment: {booking.paymentMethod?.toUpperCase() || 'N/A'}
+            </Text>
+          </View>
+
+          <View className="flex-row justify-between items-center mt-4 pt-4 border-t-2 border-slate-100">
+            <Text className="text-base text-slate-500 font-semibold">
+              Total Amount
+            </Text>
+            <Text className="text-2xl font-bold text-orange-500">
+              NPR {booking.totalPrice?.toLocaleString() || '0'}
             </Text>
           </View>
         </View>
@@ -145,160 +404,117 @@ function MyBookingsScreen({ navigation }) {
     )
   }
 
+  if (loading) {
+    return (
+      <SafeAreaView className="flex-1 bg-slate-50">
+        <View className="bg-orange-500 p-5 pt-6 pb-6 rounded-b-3xl shadow-lg">
+          <View className="flex-col items-center">
+            <Text className="text-3xl font-bold text-white mb-1">
+              My Bookings
+            </Text>
+            <Text className="text-base text-white/90 mt-1">
+              View and manage all your upcoming adventures
+            </Text>
+          </View>
+          <View className="h-1 bg-white rounded-sm mt-3" />
+        </View>
+        <View className="flex-1 justify-center items-center p-10">
+          <ActivityIndicator size="large" color="#f97316" />
+          <Text className="text-lg font-semibold text-orange-500 mt-5 text-center">
+            Loading your bookings...
+          </Text>
+        </View>
+      </SafeAreaView>
+    )
+  }
+
+  if (error) {
+    return (
+      <SafeAreaView className="flex-1 bg-slate-50">
+        <View className="bg-orange-500 p-5 pt-6 pb-6 rounded-b-3xl shadow-lg">
+          <View className="flex-col items-center">
+            <Text className="text-3xl font-bold text-white mb-1">
+              My Bookings
+            </Text>
+            <Text className="text-base text-white/90 mt-1">
+              View and manage all your upcoming adventures
+            </Text>
+          </View>
+          <View className="h-1 bg-white rounded-sm mt-3" />
+        </View>
+        <View className="flex-1 justify-center items-center p-10">
+          <Ionicons name="alert-circle-outline" size={64} color="#f97316" />
+          <Text className="text-2xl font-bold text-orange-500 mt-5 mb-3 text-center">
+            Error Loading Bookings
+          </Text>
+          <Text className="text-base text-slate-500 text-center mb-8 leading-6">
+            {error}
+          </Text>
+          <TouchableOpacity
+            className="bg-orange-500 rounded-full px-8 py-4 shadow-lg shadow-orange-500/30"
+            onPress={fetchBookings}
+          >
+            <Text className="text-white text-base font-bold text-center">
+              Try Again
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    )
+  }
+
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>My Bookings</Text>
-        <Text style={styles.headerSubtitle}>
-          View and manage all your upcoming adventures
-        </Text>
+    <SafeAreaView className="flex-1 bg-slate-50">
+      <View className="bg-orange-500 p-5 pt-6 pb-6 rounded-b-3xl shadow-lg">
+        <View className="flex-col items-center">
+          <Text className="text-3xl font-bold text-white mb-1">
+            My Bookings
+          </Text>
+          <Text className="text-base text-white/90 mt-1">
+            View and manage all your upcoming adventures
+          </Text>
+        </View>
+        <View className="h-1 bg-white rounded-sm mt-3" />
       </View>
 
-      <ScrollView style={styles.container}>
-        {bookings.length > 0 ? (
-          bookings.map(renderBookingCard)
+      {renderStatusFilter()}
+
+      <ScrollView
+        className="flex-1 p-5"
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
+      >
+        {filteredBookings.length > 0 ? (
+          filteredBookings.map(renderBookingCard)
         ) : (
-          <View style={styles.emptyContainer}>
+          <View className="items-center justify-center p-15 mt-10">
             <Ionicons name="calendar-outline" size={64} color="#d1d5db" />
-            <Text style={styles.emptyTitle}>No bookings yet</Text>
-            <Text style={styles.emptyMessage}>
-              You haven't made any bookings yet. Start exploring destinations to
-              plan your next adventure!
+            <Text className="text-2xl font-bold text-slate-800 mt-6 mb-3 text-center">
+              {selectedStatus === 'all'
+                ? 'No bookings yet'
+                : `No ${selectedStatus} bookings`}
             </Text>
-            <TouchableOpacity
-              style={styles.exploreButton}
-              onPress={() => navigation.navigate('Explore')}
-            >
-              <Text style={styles.exploreButtonText}>Explore Destinations</Text>
-            </TouchableOpacity>
+            <Text className="text-base text-slate-500 text-center mb-8 leading-6 px-5">
+              {selectedStatus === 'all'
+                ? "You haven't made any bookings yet. Start exploring destinations to plan your next adventure!"
+                : `You don't have any ${selectedStatus} bookings at the moment.`}
+            </Text>
+            {selectedStatus === 'all' && (
+              <TouchableOpacity
+                className="bg-orange-500 rounded-full px-8 py-4 shadow-lg shadow-orange-500/30"
+                onPress={() => navigation.navigate('Explore')}
+              >
+                <Text className="text-white text-base font-bold text-center">
+                  Explore Destinations
+                </Text>
+              </TouchableOpacity>
+            )}
           </View>
         )}
       </ScrollView>
     </SafeAreaView>
   )
 }
-
-const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: '#fff7ed', // orange-50 equivalent
-  },
-  header: {
-    backgroundColor: '#f97316', // orange-500 equivalent
-    padding: 16,
-    paddingTop: 20,
-    paddingBottom: 20,
-  },
-  headerTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#ffffff',
-  },
-  headerSubtitle: {
-    fontSize: 14,
-    color: 'rgba(255, 255, 255, 0.8)',
-    marginTop: 4,
-  },
-  container: {
-    flex: 1,
-    padding: 16,
-  },
-  card: {
-    backgroundColor: '#ffffff',
-    borderRadius: 12,
-    overflow: 'hidden',
-    marginBottom: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  cardImageContainer: {
-    position: 'relative',
-  },
-  cardImage: {
-    width: '100%',
-    height: 180,
-  },
-  statusBadge: {
-    position: 'absolute',
-    top: 12,
-    right: 12,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  statusText: {
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  cardContent: {
-    padding: 16,
-  },
-  cardTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#1f2937', // gray-800 equivalent
-    marginBottom: 8,
-  },
-  infoRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 6,
-  },
-  infoText: {
-    marginLeft: 8,
-    fontSize: 14,
-    color: '#4b5563', // gray-600 equivalent
-  },
-  priceContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginTop: 8,
-    paddingTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: '#f3f4f6', // gray-100 equivalent
-  },
-  priceLabel: {
-    fontSize: 14,
-    color: '#6b7280', // gray-500 equivalent
-  },
-  priceValue: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#f97316', // orange-500 equivalent
-  },
-  emptyContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 32,
-  },
-  emptyTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#1f2937', // gray-800 equivalent
-    marginTop: 16,
-    marginBottom: 8,
-  },
-  emptyMessage: {
-    fontSize: 16,
-    color: '#6b7280', // gray-500 equivalent
-    textAlign: 'center',
-    marginBottom: 24,
-  },
-  exploreButton: {
-    backgroundColor: '#f97316', // orange-500 equivalent
-    borderRadius: 8,
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-  },
-  exploreButtonText: {
-    color: '#ffffff',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-})
 
 export default MyBookingsScreen

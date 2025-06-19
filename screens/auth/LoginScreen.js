@@ -10,11 +10,13 @@ import {
   StyleSheet,
   KeyboardAvoidingView,
   Platform,
+  ScrollView,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { StatusBar } from 'expo-status-bar'
 import { useAuth } from '../../context/AuthContext'
 import { CommonActions } from '@react-navigation/native'
+import AsyncStorage from '@react-native-async-storage/async-storage'
 
 function LoginScreen({ route, navigation }) {
   const { userType = 'user' } = route.params || {}
@@ -24,9 +26,42 @@ function LoginScreen({ route, navigation }) {
   const [password, setPassword] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState('')
+  const [emailError, setEmailError] = useState('')
+  const [passwordError, setPasswordError] = useState('')
+
+  const validateEmail = (email) => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    return emailRegex.test(email)
+  }
+
+  const validateForm = () => {
+    let isValid = true
+    setError('')
+    setEmailError('')
+    setPasswordError('')
+
+    // Validate email
+    if (!email) {
+      setEmailError('Email is required')
+      isValid = false
+    } else if (!validateEmail(email)) {
+      setEmailError('Please enter a valid email address')
+      isValid = false
+    }
+
+    // Validate password
+    if (!password) {
+      setPasswordError('Password is required')
+      isValid = false
+    }
+
+    return isValid
+  }
 
   const handleLogin = async () => {
-    if (isLoading) return
+    if (!validateForm()) {
+      return
+    }
 
     setIsLoading(true)
     setError('')
@@ -34,34 +69,32 @@ function LoginScreen({ route, navigation }) {
     try {
       const response = await fetch('http://10.0.2.2:5000/api/auth/loginUser', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password, userType }),
       })
 
       const data = await response.json()
 
       if (response.ok && data.success) {
-        await login(data.token, userType, email)
+        // Use the login function from AuthContext
+        await login(data.token, userType, {
+          id: data.userId,
+          name: data.name,
+          email: data.email,
+          role: userType,
+        })
 
-        // Reset navigation state and navigate to main app
-        navigation.dispatch(
-          CommonActions.reset({
-            index: 0,
-            routes: [{ name: 'Main' }],
-          })
-        )
+        // The navigation will be handled automatically by the RootNavigator
+        // based on the user state in AuthContext
       } else {
-        setError(data.message || 'Invalid credentials')
-        Alert.alert('Login Failed', data.message || 'Invalid credentials')
+        setError(data.message || 'Login failed')
       }
     } catch (err) {
-      console.error('Login error:', err)
+      console.error(err)
       setError('An error occurred. Please try again.')
-      Alert.alert('Login Failed', 'An error occurred. Please try again.')
     } finally {
       setIsLoading(false)
+      if (error) Alert.alert('Login Failed', error)
     }
   }
 
@@ -72,59 +105,86 @@ function LoginScreen({ route, navigation }) {
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         style={styles.inner}
       >
-        <View style={styles.header}>
-          <Image
-            source={require('../../assets/images/ebc_tk_adventure_2-1624450765.jpeg')}
-            style={styles.logo}
-          />
-          <Text style={styles.title}>Tour Guide</Text>
-          <Text style={styles.subtitle}>Sign in to your account</Text>
-        </View>
-
-        <View style={styles.form}>
-          <TextInput
-            style={styles.input}
-            placeholder="Email"
-            value={email}
-            onChangeText={setEmail}
-            autoCapitalize="none"
-            keyboardType="email-address"
-          />
-          <TextInput
-            style={styles.input}
-            placeholder="Password"
-            value={password}
-            onChangeText={setPassword}
-            secureTextEntry
-          />
-
-          <TouchableOpacity
-            style={styles.button}
-            onPress={handleLogin}
-            disabled={isLoading}
-          >
-            {isLoading ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <Text style={styles.buttonText}>Sign In</Text>
-            )}
-          </TouchableOpacity>
-
-          {error ? <Text style={styles.error}>{error}</Text> : null}
-
-          <View style={{ marginTop: 24, alignItems: 'center' }}>
-            <Text>Don't have an account?</Text>
-            <TouchableOpacity
-              onPress={() => navigation.navigate('Signup', { userType })}
-            >
-              <Text
-                style={{ color: '#f97316', marginTop: 4, fontWeight: '600' }}
-              >
-                Sign Up
-              </Text>
-            </TouchableOpacity>
+        <ScrollView
+          contentContainerStyle={{ flexGrow: 1, justifyContent: 'center' }}
+        >
+          <View style={styles.header}>
+            <Image
+              source={require('../../assets/images/ebc_tk_adventure_2-1624450765.jpeg')}
+              style={styles.logo}
+            />
+            <Text style={styles.title}>
+              {userType === 'company' ? 'Company Login' : 'Welcome Back'}
+            </Text>
+            <Text style={styles.subtitle}>
+              {userType === 'company'
+                ? 'Sign in to manage your treks'
+                : 'Sign in to continue your adventure'}
+            </Text>
           </View>
-        </View>
+
+          <View style={styles.form}>
+            <View>
+              <TextInput
+                style={[styles.input, emailError ? styles.inputError : null]}
+                placeholder="Email"
+                value={email}
+                onChangeText={(text) => {
+                  setEmail(text)
+                  setEmailError('')
+                }}
+                autoCapitalize="none"
+                keyboardType="email-address"
+              />
+              {emailError ? (
+                <Text style={styles.errorText}>{emailError}</Text>
+              ) : null}
+            </View>
+
+            <View>
+              <TextInput
+                style={[styles.input, passwordError ? styles.inputError : null]}
+                placeholder="Password"
+                value={password}
+                onChangeText={(text) => {
+                  setPassword(text)
+                  setPasswordError('')
+                }}
+                secureTextEntry
+              />
+              {passwordError ? (
+                <Text style={styles.errorText}>{passwordError}</Text>
+              ) : null}
+            </View>
+
+            <TouchableOpacity
+              style={styles.button}
+              onPress={handleLogin}
+              disabled={isLoading}
+            >
+              {isLoading ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <Text style={styles.buttonText}>Sign In</Text>
+              )}
+            </TouchableOpacity>
+
+            {error ? <Text style={styles.error}>{error}</Text> : null}
+
+            <View style={{ marginTop: 24, alignItems: 'center' }}>
+              <Text>Don't have an account?</Text>
+              <TouchableOpacity
+                onPress={() => navigation.navigate('Signup', { userType })}
+              >
+                <Text
+                  style={{ color: '#f97316', marginTop: 4, fontWeight: '600' }}
+                >
+                  Sign Up
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
   )
@@ -193,6 +253,16 @@ const styles = StyleSheet.create({
     marginTop: 12,
     color: '#ef4444',
     textAlign: 'center',
+  },
+  inputError: {
+    borderColor: '#ef4444',
+  },
+  errorText: {
+    color: '#ef4444',
+    fontSize: 12,
+    marginTop: -12,
+    marginBottom: 12,
+    marginLeft: 4,
   },
 })
 

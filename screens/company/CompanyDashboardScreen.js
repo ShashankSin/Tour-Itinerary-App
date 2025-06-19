@@ -112,7 +112,7 @@ function CompanyDashboardScreen({ navigation }) {
         </Text>
       </View>
       <View style={styles.bookingMeta}>
-        <Text style={styles.bookingAmount}>${item.amount}</Text>
+        <Text style={styles.bookingAmount}>NPR {item.amount}</Text>
         <View
           style={[
             styles.statusBadge,

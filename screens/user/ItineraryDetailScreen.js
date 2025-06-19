@@ -1,5 +1,3 @@
-'use client'
-
 import { useEffect, useState, useRef } from 'react'
 import {
   View,
@@ -34,6 +32,7 @@ const ItineraryDetailScreen = ({ navigation }) => {
   const [error, setError] = useState('')
   const [activeImageIndex, setActiveImageIndex] = useState(0)
   const scrollY = useRef(new Animated.Value(0)).current
+  const scrollX = useRef(new Animated.Value(0)).current
   const scrollViewRef = useRef(null)
 
   // Wishlist state
@@ -54,51 +53,72 @@ const ItineraryDetailScreen = ({ navigation }) => {
     extrapolate: 'clamp',
   })
 
-  const getItineraryDetails = async () => {
-    try {
-      if (!itineraryId || itineraryId === 'undefined') {
-        setError('Invalid itinerary ID')
-        setLoading(false)
-        return
-      }
+  useEffect(() => {
+    const listener = scrollX.addListener(({ value }) => {
+      const index = Math.round(value / width)
+      setActiveImageIndex(index)
+    })
 
+    return () => {
+      scrollX.removeListener(listener)
+    }
+  }, [scrollX])
+
+  const fetchItinerary = async () => {
+    try {
+      setLoading(true)
       const response = await axios.get(
         `http://10.0.2.2:5000/api/trek/public/itinerary/${itineraryId}`
       )
-      setItinerary(response.data)
-    } catch (err) {
-      console.error('Error fetching itinerary details:', err.message)
-      setError('Failed to fetch itinerary details.')
+
+      if (response.data) {
+        setItinerary(response.data)
+        // Check if itinerary is in wishlist
+        const token = await AsyncStorage.getItem('userToken')
+        if (token) {
+          const wishlistResponse = await axios.get(
+            `http://10.0.2.2:5000/api/wishlist/check/${itineraryId}`,
+            {
+              headers: {
+                Authorization: `Bearer ${token}`,
+              },
+            }
+          )
+          setIsInWishlist(wishlistResponse.data.isInWishlist)
+        }
+      } else {
+        throw new Error('Failed to fetch itinerary')
+      }
+    } catch (error) {
+      console.error('Error fetching itinerary:', error.response?.data || error)
+      setError(error.response?.data?.message || 'Failed to fetch itinerary')
     } finally {
       setLoading(false)
     }
   }
 
-  const getTrekReviews = async () => {
-    setReviewsLoading(true)
+  const fetchReviews = async () => {
     try {
-      const token = await AsyncStorage.getItem('token')
-      if (!token) {
-        console.warn('No token found')
-        return
-      }
-
-      const decoded = jwtDecode(token)
-      const userId = decoded.id
-
+      setReviewsLoading(true)
+      const token = await AsyncStorage.getItem('userToken')
       const response = await axios.get(
         `http://10.0.2.2:5000/api/review/trek/${itineraryId}`,
         {
           headers: {
-            Authorization: `Bearer ${token}`, // Optional if backend uses auth middleware
-            'x-user-id': userId, // Custom header to send userId
+            Authorization: `Bearer ${token}`,
           },
         }
       )
 
-      setReviews(response.data)
-    } catch (err) {
-      console.error('Error fetching reviews:', err.message)
+      if (response.data) {
+        setReviews(response.data.reviews || [])
+      } else {
+        setReviews([])
+      }
+    } catch (error) {
+      console.error('Error fetching reviews:', error.response?.data || error)
+      setReviews([])
+      setError('Failed to fetch reviews')
     } finally {
       setReviewsLoading(false)
     }
@@ -170,47 +190,60 @@ const ItineraryDetailScreen = ({ navigation }) => {
   }
 
   const submitReview = async () => {
-    if (!reviewText.trim()) {
-      Alert.alert('Error', 'Please enter a review comment')
-      return
-    }
-
     try {
-      const token = await AsyncStorage.getItem('token')
-      console.log('Token:', token)
-
+      setReviewSubmitting(true)
+      const token = await AsyncStorage.getItem('userToken')
       const decoded = jwtDecode(token)
       const userId = decoded.id
-      console.log('User ID:', userId)
-      setReviewSubmitting(true)
 
-      await axios.post(
+      if (!userId) {
+        throw new Error('User not authenticated')
+      }
+
+      if (!itinerary?._id) {
+        throw new Error('Itinerary information not available')
+      }
+
+      const response = await axios.post(
         'http://10.0.2.2:5000/api/review/create',
         {
-          userId,
           trekId: itineraryId,
-          rating,
+          userId: userId,
+          companyId: itinerary.companyId, // Use the companyId from the itinerary
+          rating: rating,
           comment: reviewText,
         },
         {
-          headers: { Authorization: `Bearer ${token}` },
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
         }
       )
 
-      Alert.alert('Success', 'Your review has been submitted!')
-      setReviewText('')
-      setRating(5)
-    } catch (err) {
-      console.error('Submit review error:', err.response?.data || err.message)
-      Alert.alert('Error', 'Failed to submit review. Please try again.')
+      if (response.data.success) {
+        Alert.alert('Success', 'Review submitted successfully')
+        setReviewModalVisible(false)
+        setReviewText('')
+        setRating(5)
+        // Refresh reviews after submission
+        fetchReviews()
+      } else {
+        throw new Error(response.data.message || 'Failed to submit review')
+      }
+    } catch (error) {
+      console.error('Submit review error:', error.response?.data || error)
+      Alert.alert(
+        'Error',
+        error.response?.data?.message || 'Failed to submit review'
+      )
     } finally {
       setReviewSubmitting(false)
     }
   }
 
   useEffect(() => {
-    getItineraryDetails()
-    getTrekReviews()
+    fetchItinerary()
+    fetchReviews()
     checkWishlistStatus()
   }, [itineraryId])
 
@@ -240,7 +273,7 @@ const ItineraryDetailScreen = ({ navigation }) => {
           onPress={() => {
             setLoading(true)
             setError('')
-            getItineraryDetails()
+            fetchItinerary()
           }}
         >
           <Text style={styles.retryButtonText}>Try Again</Text>
@@ -302,12 +335,11 @@ const ItineraryDetailScreen = ({ navigation }) => {
         ref={scrollViewRef}
         style={styles.scrollView}
         contentContainerStyle={styles.scrollViewContent}
-        showsVerticalScrollIndicator={false}
-        scrollEventThrottle={16}
         onScroll={Animated.event(
           [{ nativeEvent: { contentOffset: { y: scrollY } } }],
           { useNativeDriver: false }
         )}
+        scrollEventThrottle={16}
       >
         {/* Image Gallery */}
         <View style={styles.imageGalleryContainer}>
@@ -317,24 +349,21 @@ const ItineraryDetailScreen = ({ navigation }) => {
                 horizontal
                 pagingEnabled
                 showsHorizontalScrollIndicator={false}
-                onScroll={(event) => {
-                  const contentOffset = event.nativeEvent.contentOffset.x
-                  const imageIndex = Math.round(contentOffset / width)
-                  setActiveImageIndex(imageIndex)
-                }}
+                onScroll={Animated.event(
+                  [{ nativeEvent: { contentOffset: { x: scrollX } } }],
+                  { useNativeDriver: false }
+                )}
                 scrollEventThrottle={16}
               >
-                {itinerary.images.map((img, index) => (
+                {itinerary.images.map((image, index) => (
                   <Image
                     key={index}
-                    source={{ uri: `http://10.0.2.2:5000/uploads/${img}` }}
+                    source={{ uri: image }}
                     style={styles.galleryImage}
                     resizeMode="cover"
                   />
                 ))}
               </ScrollView>
-
-              {/* Image Pagination Dots */}
               <View style={styles.paginationContainer}>
                 {itinerary.images.map((_, index) => (
                   <View
@@ -614,33 +643,33 @@ const ItineraryDetailScreen = ({ navigation }) => {
                 </Text>
               </View>
             ) : reviews.length > 0 ? (
-              reviews.map((review) => (
+              reviews.map((review, index) => (
                 <View key={review._id} style={styles.reviewItem}>
                   <View style={styles.reviewHeader}>
-                    <View style={styles.reviewAvatarContainer}>
-                      <Text style={styles.reviewAvatarText}>
-                        {review.user?.name?.charAt(0) || 'U'}
-                      </Text>
-                    </View>
                     <View style={styles.reviewUserInfo}>
-                      <Text style={styles.reviewUserName}>
-                        {review.user?.name || 'Anonymous User'}
-                      </Text>
-                      <View style={styles.reviewRatingContainer}>
-                        {[1, 2, 3, 4, 5].map((star) => (
-                          <Ionicons
-                            key={star}
-                            name={
-                              star <= review.rating ? 'star' : 'star-outline'
-                            }
-                            size={14}
-                            color="#f97316"
-                          />
-                        ))}
+                      <View style={styles.reviewUserAvatar}>
+                        <Text style={styles.reviewUserInitial}>
+                          {review.userId?.name?.charAt(0) || 'U'}
+                        </Text>
+                      </View>
+                      <View>
+                        <Text style={styles.reviewUserName}>
+                          {review.userId?.name || 'Anonymous'}
+                        </Text>
                         <Text style={styles.reviewDate}>
                           {new Date(review.createdAt).toLocaleDateString()}
                         </Text>
                       </View>
+                    </View>
+                    <View style={styles.reviewRating}>
+                      {[1, 2, 3, 4, 5].map((star) => (
+                        <Ionicons
+                          key={star}
+                          name={star <= review.rating ? 'star' : 'star-outline'}
+                          size={16}
+                          color="#f97316"
+                        />
+                      ))}
                     </View>
                   </View>
                   <Text style={styles.reviewComment}>{review.comment}</Text>
@@ -648,16 +677,10 @@ const ItineraryDetailScreen = ({ navigation }) => {
               ))
             ) : (
               <View style={styles.noReviewsContainer}>
-                <Ionicons name="chatbubble-outline" size={40} color="#f97316" />
-                <Text style={styles.noReviewsText}>
-                  No reviews yet. Be the first to review!
+                <Text style={styles.noReviewsText}>No reviews yet</Text>
+                <Text style={styles.noReviewsSubtext}>
+                  Be the first to share your experience
                 </Text>
-                <TouchableOpacity
-                  style={styles.beFirstButton}
-                  onPress={() => setReviewModalVisible(true)}
-                >
-                  <Text style={styles.beFirstButtonText}>Write a Review</Text>
-                </TouchableOpacity>
               </View>
             )}
           </View>
@@ -1101,7 +1124,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: 20,
   },
   reviewActions: {
     flexDirection: 'row',
@@ -1110,12 +1133,18 @@ const styles = StyleSheet.create({
   writeReviewButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginRight: 16,
+    backgroundColor: '#fff3e0',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#f97316',
   },
   writeReviewText: {
     color: '#f97316',
-    fontWeight: '500',
-    marginLeft: 4,
+    fontWeight: '600',
+    marginLeft: 6,
+    fontSize: 14,
   },
   seeAllText: {
     color: '#f97316',
@@ -1124,79 +1153,108 @@ const styles = StyleSheet.create({
   reviewsLoadingContainer: {
     padding: 20,
     alignItems: 'center',
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#f3f4f6',
   },
   reviewsLoadingText: {
     marginTop: 8,
     color: '#6b7280',
+    fontSize: 14,
   },
   reviewItem: {
-    backgroundColor: '#fff8f0',
+    backgroundColor: '#fff',
     borderRadius: 16,
     padding: 16,
-    marginBottom: 12,
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+    borderWidth: 1,
+    borderColor: '#f3f4f6',
   },
   reviewHeader: {
     flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
     marginBottom: 12,
   },
-  reviewAvatarContainer: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(249, 115, 22, 0.2)',
+  reviewUserInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  reviewUserAvatar: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#fff3e0',
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 12,
+    borderWidth: 2,
+    borderColor: '#f97316',
   },
-  reviewAvatarText: {
+  reviewUserInitial: {
     color: '#f97316',
     fontWeight: 'bold',
-    fontSize: 16,
-  },
-  reviewUserInfo: {
-    flex: 1,
+    fontSize: 20,
   },
   reviewUserName: {
     fontWeight: 'bold',
-    color: '#1f2937',
     fontSize: 16,
+    color: '#1f2937',
     marginBottom: 4,
   },
-  reviewRatingContainer: {
+  reviewDate: {
+    fontSize: 13,
+    color: '#6b7280',
+  },
+  reviewRating: {
     flexDirection: 'row',
     alignItems: 'center',
-  },
-  reviewDate: {
-    fontSize: 12,
-    color: '#6b7280',
-    marginLeft: 8,
-  },
-  reviewComment: {
-    fontSize: 14,
-    color: '#4b5563',
-    lineHeight: 20,
-  },
-  noReviewsContainer: {
-    padding: 24,
-    alignItems: 'center',
-    backgroundColor: '#fff8f0',
-    borderRadius: 16,
-  },
-  noReviewsText: {
-    marginTop: 12,
-    marginBottom: 16,
-    color: '#4b5563',
-    textAlign: 'center',
-  },
-  beFirstButton: {
-    backgroundColor: '#f97316',
-    paddingVertical: 10,
-    paddingHorizontal: 20,
+    backgroundColor: '#fff3e0',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
     borderRadius: 12,
   },
-  beFirstButtonText: {
-    color: 'white',
+  reviewComment: {
+    fontSize: 15,
+    color: '#374151',
+    lineHeight: 22,
+  },
+  noReviewsContainer: {
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    padding: 24,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#f3f4f6',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  noReviewsText: {
+    fontSize: 18,
     fontWeight: 'bold',
+    color: '#1f2937',
+    marginBottom: 8,
+  },
+  noReviewsSubtext: {
+    fontSize: 14,
+    color: '#6b7280',
+    textAlign: 'center',
   },
   bookButtonContainer: {
     position: 'absolute',

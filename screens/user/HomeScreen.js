@@ -1,5 +1,3 @@
-'use client'
-
 import { useState, useEffect } from 'react'
 import {
   View,
@@ -8,7 +6,6 @@ import {
   ActivityIndicator,
   FlatList,
   TouchableOpacity,
-  Alert,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useAuth } from '../../context/AuthContext'
@@ -22,7 +19,12 @@ import {
   Compass,
   Sun,
   Star,
+  AlertCircle,
 } from 'lucide-react-native'
+
+// Configure axios defaults
+axios.defaults.baseURL = 'http://10.0.2.2:5000/api'
+axios.defaults.timeout = 10000 // 10 seconds timeout
 
 const HomeScreen = ({ navigation }) => {
   const { user, logout } = useAuth()
@@ -31,6 +33,52 @@ const HomeScreen = ({ navigation }) => {
   const [recommendations, setRecommendations] = useState([])
   const [trendingTreks, setTrendingTreks] = useState([])
   const [popularDestinations, setPopularDestinations] = useState([])
+  const [bookings, setBookings] = useState([])
+  const [reviews, setReviews] = useState([])
+  const [wishlistItems, setWishlistItems] = useState([])
+  const [allTreks, setAllTreks] = useState([])
+  const [hasUserActivity, setHasUserActivity] = useState(false)
+
+  const fetchUserData = async (token) => {
+    try {
+      // Fetch user bookings
+      const bookingsResponse = await axios.get('/booking/user/bookings', {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      if (bookingsResponse.data.success) {
+        setBookings(bookingsResponse.data.bookings || [])
+      }
+    } catch (error) {
+      setBookings([])
+    }
+
+    try {
+      // Fetch user reviews
+      const reviewsResponse = await axios.get('/review/trek/all', {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      if (reviewsResponse.data.success) {
+        const userReviews = reviewsResponse.data.reviews.filter(
+          (review) => review.userId._id === user.id
+        )
+        setReviews(userReviews)
+      }
+    } catch (error) {
+      setReviews([])
+    }
+
+    try {
+      // Fetch user wishlist
+      const wishlistResponse = await axios.get('/wishlist/get', {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      if (wishlistResponse.data.success) {
+        setWishlistItems(wishlistResponse.data.wishlist.treks || [])
+      }
+    } catch (error) {
+      setWishlistItems([])
+    }
+  }
 
   const fetchData = async () => {
     try {
@@ -40,43 +88,117 @@ const HomeScreen = ({ navigation }) => {
         return
       }
 
-      // Fetch all treks for now - we'll filter them client-side
-      const response = await axios.get(
-        'http://192.168.1.69:5000/api/trek/allitinerary',
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
+      // Fetch user data (bookings, reviews, wishlist)
+      await fetchUserData(token)
+
+      // Fetch all treks
+      let treks = []
+      let fetchedFromAPI = false
+      try {
+        const allTreksResponse = await axios.get('/trek/allitinerary')
+        if (allTreksResponse.data.success) {
+          treks = allTreksResponse.data.treks || []
+          setAllTreks(treks)
+          // Save to cache
+          await AsyncStorage.setItem('cachedTreks', JSON.stringify(treks))
+          fetchedFromAPI = true
         }
-      )
+      } catch (error) {
+        // If fetch fails, try to load from cache
+        const cachedTreks = await AsyncStorage.getItem('cachedTreks')
+        if (cachedTreks) {
+          treks = JSON.parse(cachedTreks)
+          setAllTreks(treks)
+        } else {
+          setAllTreks([])
+        }
+      }
 
-      if (response.data.success) {
-        const allTreks = response.data.treks || []
+      // Fetch recommendations
+      try {
+        const recommendationsResponse = await axios.get(
+          `/recommendations?userId=${user.id}&type=recommendations&limit=5`,
+          { headers: { Authorization: `Bearer ${token}` } }
+        )
+        if (recommendationsResponse.data.success) {
+          setRecommendations(recommendationsResponse.data.data || [])
+        } else {
+          // Fallback to highest rated treks
+          const highestRated = [...treks]
+            .sort((a, b) => (b.rating || 0) - (a.rating || 0))
+            .slice(0, 5)
+          setRecommendations(highestRated)
+        }
+      } catch (error) {
+        // Fallback to highest rated treks
+        const highestRated = [...treks]
+          .sort((a, b) => (b.rating || 0) - (a.rating || 0))
+          .slice(0, 5)
+        setRecommendations(highestRated)
+      }
 
-        // For now, just split the treks into different categories randomly
-        const shuffled = [...allTreks].sort(() => 0.5 - Math.random())
+      // Fetch trending treks
+      try {
+        const trendingResponse = await axios.get('/trek/trending', {
+          headers: { Authorization: `Bearer ${token}` },
+        })
+        if (trendingResponse.data.success) {
+          setTrendingTreks(trendingResponse.data.treks || [])
+        } else {
+          // Fallback to most reviewed treks
+          const mostReviewed = [...treks]
+            .sort((a, b) => (b.ratingCount || 0) - (a.ratingCount || 0))
+            .slice(0, 5)
+          setTrendingTreks(mostReviewed)
+        }
+      } catch (error) {
+        // Fallback to most reviewed treks
+        const mostReviewed = [...treks]
+          .sort((a, b) => (b.ratingCount || 0) - (a.ratingCount || 0))
+          .slice(0, 5)
+        setTrendingTreks(mostReviewed)
+      }
 
-        setRecommendations(shuffled.slice(0, 5))
-        setTrendingTreks(shuffled.slice(5, 10))
-        setPopularDestinations(shuffled.slice(10, 15))
+      // Fetch popular destinations
+      try {
+        const popularResponse = await axios.get('/trek/popular', {
+          headers: { Authorization: `Bearer ${token}` },
+        })
+        if (popularResponse.data.success) {
+          setPopularDestinations(popularResponse.data.treks || [])
+        } else {
+          // Fallback to most booked treks
+          const mostBooked = [...treks]
+            .sort((a, b) => (b.bookingCount || 0) - (a.bookingCount || 0))
+            .slice(0, 5)
+          setPopularDestinations(mostBooked)
+        }
+      } catch (error) {
+        // Fallback to most booked treks
+        const mostBooked = [...treks]
+          .sort((a, b) => (b.bookingCount || 0) - (a.bookingCount || 0))
+          .slice(0, 5)
+        setPopularDestinations(mostBooked)
       }
     } catch (error) {
-      console.error('Error fetching home data:', error)
-      if (error.response?.status === 401) {
-        Alert.alert('Session Expired', 'Please log in again.', [
-          {
-            text: 'OK',
-            onPress: () => logout(),
-          },
-        ])
+      // If there's an error, still try to show some content from cache
+      const cachedTreks = await AsyncStorage.getItem('cachedTreks')
+      let treks = []
+      if (cachedTreks) {
+        treks = JSON.parse(cachedTreks)
+        setAllTreks(treks)
       } else {
-        Alert.alert('Error', 'Failed to load data. Please try again.')
+        setAllTreks([])
       }
-      setRecommendations([])
-      setTrendingTreks([])
-      setPopularDestinations([])
+      const highestRated = [...treks]
+        .sort((a, b) => (b.rating || 0) - (a.rating || 0))
+        .slice(0, 5)
+      setRecommendations(highestRated)
+      setTrendingTreks(highestRated)
+      setPopularDestinations(highestRated)
     } finally {
       setLoading(false)
+      setRefreshing(false)
     }
   }
 
@@ -89,6 +211,13 @@ const HomeScreen = ({ navigation }) => {
   useEffect(() => {
     fetchData()
   }, [user])
+
+  // Check if user has any activity (bookings, reviews, or wishlist items)
+  useEffect(() => {
+    const hasActivity =
+      bookings.length > 0 || reviews.length > 0 || wishlistItems.length > 0
+    setHasUserActivity(hasActivity)
+  }, [bookings, reviews, wishlistItems])
 
   if (loading) {
     return (
@@ -160,10 +289,28 @@ const HomeScreen = ({ navigation }) => {
   )
 
   const renderSection = ({ section, data, onSeeAll, icon: Icon }) => (
-    <View className="mb-8">
+    <View className="my-8">
       <SectionHeader section={section} onSeeAll={onSeeAll} icon={Icon} />
       <FlatList
         data={data}
+        renderItem={renderTrekCard}
+        keyExtractor={(item) => item._id}
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={{ paddingHorizontal: 16 }}
+      />
+    </View>
+  )
+
+  const renderAllTreks = () => (
+    <View className="my-8">
+      <SectionHeader
+        section="All Treks"
+        onSeeAll={() => navigation.navigate('Explore')}
+        icon={Mountain}
+      />
+      <FlatList
+        data={allTreks}
         renderItem={renderTrekCard}
         keyExtractor={(item) => item._id}
         horizontal
@@ -219,41 +366,73 @@ const HomeScreen = ({ navigation }) => {
         </View>
       </View>
 
-      {/* Quick Stats */}
-      <View className="flex-row mx-6 -mt-8 mb-6">
-        <View className="flex-1 bg-white rounded-3xl p-5 mr-3 shadow-lg border border-gray-100">
-          <View className="flex-row items-center mb-2">
-            <Star size={20} color="#ea580c" />
-            <Text className="text-gray-700 text-sm ml-2 font-medium">
-              Completed
+      {/* Quick Stats - Only show if user has activity */}
+      {hasUserActivity && (
+        <View className="flex-row mx-6 -mt-8 mb-6">
+          <View className="flex-1 bg-white rounded-3xl p-5 mr-3 shadow-lg border border-gray-100">
+            <View className="flex-row items-center mb-2">
+              <Star size={20} color="#ea580c" />
+              <Text className="text-gray-700 text-sm ml-2 font-medium">
+                Completed
+              </Text>
+            </View>
+            <Text className="text-3xl font-bold text-gray-800">
+              {bookings.length}
             </Text>
+            <Text className="text-gray-600 text-sm">Treks</Text>
           </View>
-          <Text className="text-3xl font-bold text-gray-800">12</Text>
-          <Text className="text-gray-600 text-sm">Treks</Text>
-        </View>
-        <View className="flex-1 bg-white rounded-3xl p-5 ml-3 shadow-lg border border-gray-100">
-          <View className="flex-row items-center mb-2">
-            <Mountain size={20} color="#f97316" />
-            <Text className="text-gray-700 text-sm ml-2 font-medium">
-              Rating
+          <View className="flex-1 bg-white rounded-3xl p-5 ml-3 shadow-lg border border-gray-100">
+            <View className="flex-row items-center mb-2">
+              <Mountain size={20} color="#f97316" />
+              <Text className="text-gray-700 text-sm ml-2 font-medium">
+                Rating
+              </Text>
+            </View>
+            <Text className="text-3xl font-bold text-gray-800">
+              {reviews.length > 0
+                ? (
+                    reviews.reduce((acc, review) => acc + review.rating, 0) /
+                    reviews.length
+                  ).toFixed(1)
+                : '0.0'}
             </Text>
+            <Text className="text-gray-600 text-sm">Average</Text>
           </View>
-          <Text className="text-3xl font-bold text-gray-800">4.8</Text>
-          <Text className="text-gray-600 text-sm">Average</Text>
         </View>
-      </View>
+      )}
 
-      {/* Sections */}
-      {sections.map((section) => (
-        <View key={section.title}>
-          {renderSection({
-            section: section.title,
-            data: section.data,
-            onSeeAll: section.onSeeAll,
-            icon: section.icon,
-          })}
+      {/* Show all treks if no user activity, otherwise show curated sections */}
+      {!hasUserActivity
+        ? renderAllTreks()
+        : sections.map((section) => (
+            <View key={section.title} className="mt-8">
+              {renderSection({
+                section: section.title,
+                data: section.data,
+                onSeeAll: section.onSeeAll,
+                icon: section.icon,
+              })}
+            </View>
+          ))}
+
+      {/* Show all treks section at the bottom if user has activity */}
+      {hasUserActivity && allTreks.length > 0 && (
+        <View className="my-8">
+          <SectionHeader
+            section="All Available Treks"
+            onSeeAll={() => navigation.navigate('Explore')}
+            icon={Mountain}
+          />
+          <FlatList
+            data={allTreks.slice(0, 10)} // Show first 10 treks
+            renderItem={renderTrekCard}
+            keyExtractor={(item) => item._id}
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={{ paddingHorizontal: 16 }}
+          />
         </View>
-      ))}
+      )}
     </View>
   )
 

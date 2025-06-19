@@ -18,10 +18,57 @@ import axios from 'axios'
 import { format } from 'date-fns'
 import { jwtDecode } from 'jwt-decode'
 import { Calendar } from 'react-native-calendars'
+import { useAuth } from '../../context/AuthContext'
 
 const { width } = Dimensions.get('window')
 
+const paymentOptions = [
+  { id: 'khalti', label: 'Khalti' },
+  { id: 'esewa', label: 'eSewa' },
+]
+
+const renderPaymentOptions = () => {
+  if (formStep === 'review') {
+    // In review step, only show the selected payment method
+    return (
+      <View style={styles.detailRow}>
+        <Text style={styles.detailLabel}>Payment Method</Text>
+        <Text style={styles.detailValue}>
+          {paymentOptions.find((opt) => opt.id === formData.paymentMethod)
+            ?.label || formData.paymentMethod}
+        </Text>
+      </View>
+    )
+  }
+
+  // In details step, show all payment options
+  return (
+    <View style={styles.paymentContainer}>
+      {paymentOptions.map((option) => (
+        <TouchableOpacity
+          key={option.id}
+          style={[
+            styles.paymentButton,
+            formData.paymentMethod === option.id && styles.paymentButtonActive,
+          ]}
+          onPress={() => handleInputChange('paymentMethod', option.id)}
+        >
+          <Text
+            style={[
+              styles.paymentButtonText,
+              formData.paymentMethod === option.id && { color: 'white' },
+            ]}
+          >
+            {option.label}
+          </Text>
+        </TouchableOpacity>
+      ))}
+    </View>
+  )
+}
+
 function BookingScreen({ navigation, route }) {
+  const { user } = useAuth()
   const [formStep, setFormStep] = useState('details') // 'details', 'review', 'confirmation'
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState(null)
@@ -45,12 +92,11 @@ function BookingScreen({ navigation, route }) {
     email: '',
     phone: '',
     participants: '1',
-    paymentMethod: 'card',
+    paymentMethod: 'khalti',
     specialRequests: '',
   })
 
   // Fetch itinerary details using the ID
-  // useEffect: Fetch itinerary using trekId
   useEffect(() => {
     const fetchItineraryDetails = async () => {
       if (!trekId) {
@@ -65,6 +111,7 @@ function BookingScreen({ navigation, route }) {
           `http://10.0.2.2:5000/api/trek/public/itinerary/${trekId}`
         )
         console.log('Fetched itinerary:', response.data)
+        console.log('Itinerary companyId:', response.data.companyId)
         setItinerary(response.data)
       } catch (err) {
         console.error('Error fetching itinerary details:', err)
@@ -77,44 +124,54 @@ function BookingScreen({ navigation, route }) {
     fetchItineraryDetails()
   }, [trekId])
 
-  // Load user data and token when component mounts
+  // Load user data from AuthContext or AsyncStorage
   useEffect(() => {
-    const loadUserData = async () => {
+    const fetchAndSetUserData = async () => {
       try {
-        const token = await AsyncStorage.getItem('userToken')
-        const user = await AsyncStorage.getItem('userData')
-
-        if (token) setUserToken(token)
-        if (user) {
-          const parsedUser = JSON.parse(user)
-          setUserData(parsedUser)
+        const token = await AsyncStorage.getItem('token')
+        if (!token) return
+        const response = await axios.get(
+          'http://10.0.2.2:5000/api/user/userData',
+          {
+            headers: { Authorization: `Bearer ${token}` },
+          }
+        )
+        if (response.data && response.data.usersData) {
+          const { name, email } = response.data.usersData
           setFormData((prev) => ({
             ...prev,
-            fullName: parsedUser.name || '',
-            email: parsedUser.email || '',
-            phone: parsedUser.phone || '',
+            fullName: name || '',
+            email: email || '',
           }))
         }
-      } catch (error) {
-        console.error('Error loading user data:', error)
+      } catch (err) {
+        // fallback to AuthContext or AsyncStorage if needed
+        let name = '',
+          email = ''
+        if (user) {
+          name = user.name || ''
+          email = user.email || ''
+        } else {
+          try {
+            const userData = await AsyncStorage.getItem('userData')
+            if (userData) {
+              const parsedUser = JSON.parse(userData)
+              name = parsedUser.name || ''
+              email = parsedUser.email || ''
+            }
+          } catch {}
+        }
+        setFormData((prev) => ({
+          ...prev,
+          fullName: name,
+          email: email,
+        }))
       }
     }
+    fetchAndSetUserData()
+  }, [user])
 
-    loadUserData()
-  }, [])
-
-  const handleInputChange = (name, value) => {
-    setFormData({ ...formData, [name]: value })
-  }
-
-  const handleStatusChange = (status) => {
-    setBookingStatus(status)
-  }
-
-  const handlePaymentStatusChange = (status) => {
-    setPaymentStatus(status)
-  }
-
+  // When user selects a start date, auto-calculate end date
   const handleStartDateSelect = (day) => {
     const selectedDate = new Date(day.dateString)
     const today = new Date()
@@ -128,28 +185,43 @@ function BookingScreen({ navigation, route }) {
     setSelectedStartDate(day.dateString)
     setShowStartCalendar(false)
 
-    // If end date is before new start date, clear end date
-    if (selectedEndDate && new Date(selectedEndDate) < selectedDate) {
+    // Auto-calculate end date based on itinerary duration
+    if (itinerary && itinerary.duration) {
+      const endDate = new Date(selectedDate)
+      endDate.setDate(endDate.getDate() + Number(itinerary.duration) - 1)
+      setSelectedEndDate(endDate.toISOString().split('T')[0])
+    } else {
       setSelectedEndDate(null)
     }
   }
 
-  const handleEndDateSelect = (day) => {
-    if (!selectedStartDate) {
-      Alert.alert('Select Start Date', 'Please select a start date first.')
-      return
+  // Recalculate end date if duration or start date changes
+  useEffect(() => {
+    if (selectedStartDate && itinerary && itinerary.duration) {
+      const start = new Date(selectedStartDate)
+      const end = new Date(start)
+      end.setDate(start.getDate() + Number(itinerary.duration) - 1)
+      setSelectedEndDate(end.toISOString().split('T')[0])
     }
+  }, [selectedStartDate, itinerary?.duration])
 
-    const startDate = new Date(selectedStartDate)
-    const endDate = new Date(day.dateString)
+  // Calculate total price automatically
+  const calculateTotalPrice = () => {
+    if (!itinerary || !itinerary.price) return 0
+    const participants = Number.parseInt(formData.participants)
+    return itinerary.price * (isNaN(participants) ? 1 : participants)
+  }
 
-    if (endDate < startDate) {
-      Alert.alert('Invalid Date', 'End date cannot be before start date.')
-      return
-    }
+  const handleInputChange = (name, value) => {
+    setFormData({ ...formData, [name]: value })
+  }
 
-    setSelectedEndDate(day.dateString)
-    setShowEndCalendar(false)
+  const handleStatusChange = (status) => {
+    setBookingStatus(status)
+  }
+
+  const handlePaymentStatusChange = (status) => {
+    setPaymentStatus(status)
   }
 
   const handleNext = () => {
@@ -174,7 +246,6 @@ function BookingScreen({ navigation, route }) {
   }
 
   // handleConfirm: Confirm booking using itinerary details
-  // handleConfirm: Confirm booking using itinerary details
   const handleConfirm = async () => {
     console.log('Confirming booking...')
 
@@ -193,82 +264,135 @@ function BookingScreen({ navigation, route }) {
       return
     }
 
-    try {
-      setIsLoading(true)
-      setError(null)
+    const maxRetries = 3
+    let currentTry = 0
 
-      const decodedToken = jwtDecode(storedToken)
-      const userId = decodedToken.id || decodedToken.userId || decodedToken.sub
-      console.log('Decoded token:', decodedToken)
-      console.log('Extracted user ID:', userId)
+    while (currentTry < maxRetries) {
+      try {
+        setIsLoading(true)
+        setError(null)
 
-      if (!itinerary) throw new Error('Itinerary not loaded yet')
+        const decodedToken = jwtDecode(storedToken)
+        const userId =
+          decodedToken.id || decodedToken.userId || decodedToken.sub
+        console.log('Decoded token:', decodedToken)
+        console.log('Extracted user ID:', userId)
 
-      // Extract companyId from itinerary.userId (ObjectId or string)
-      const companyId =
-        typeof itinerary.userId === 'string'
-          ? itinerary.userId
-          : itinerary.userId?._id
+        if (!itinerary) throw new Error('Itinerary not loaded yet')
 
-      console.log('Company ID from itinerary.userId:', companyId)
+        // Extract companyId from itinerary - handle both companyId and userId fields
+        let companyId =
+          itinerary.companyId?._id ||
+          itinerary.companyId ||
+          itinerary.userId?._id ||
+          itinerary.userId
 
-      if (!userId) throw new Error('User ID not found in token')
-      if (!companyId) throw new Error('Company ID not found in itinerary')
-      if (!itinerary._id) throw new Error('Itinerary ID is missing')
+        console.log('🔍 Debugging companyId extraction:')
+        console.log(
+          '📋 Full itinerary object:',
+          JSON.stringify(itinerary, null, 2)
+        )
+        console.log('🏢 itinerary.companyId:', itinerary.companyId)
+        console.log('👤 itinerary.userId:', itinerary.userId)
+        console.log(
+          '🏢 typeof itinerary.companyId:',
+          typeof itinerary.companyId
+        )
+        console.log('👤 typeof itinerary.userId:', typeof itinerary.userId)
+        console.log('🏢 itinerary.companyId._id:', itinerary.companyId?._id)
+        console.log('👤 itinerary.userId._id:', itinerary.userId?._id)
+        console.log('🏢 Extracted companyId:', companyId)
+        console.log('🏢 Final companyId type:', typeof companyId)
 
-      const participantsCount = Number.parseInt(formData.participants)
-      if (isNaN(participantsCount) || participantsCount <= 0) {
-        throw new Error('Invalid number of participants')
-      }
-
-      const bookingData = {
-        userId: userId,
-        trekId: itinerary._id,
-        companyId: companyId,
-        startDate: selectedStartDate,
-        endDate: selectedEndDate,
-        participants: participantsCount,
-        totalPrice: calculateTotalPrice(),
-        status: 'pending',
-        paymentStatus: 'pending',
-        paymentMethod: formData.paymentMethod,
-        specialRequests: formData.specialRequests || '',
-        customerName: formData.fullName,
-        customerEmail: formData.email,
-        customerPhone: formData.phone,
-      }
-
-      console.log('Booking Data:', JSON.stringify(bookingData, null, 2))
-
-      const response = await axios.post(
-        'http://10.0.2.2:5000/api/booking/create',
-        bookingData,
-        {
-          headers: {
-            Authorization: `Bearer ${storedToken}`,
-            'Content-Type': 'application/json',
-          },
+        // If companyId is still not found, try to fetch it from the trek directly
+        if (!companyId && itinerary._id) {
+          console.log('🔄 CompanyId not found, trying to fetch trek details...')
+          try {
+            const trekResponse = await axios.get(
+              `http://10.0.2.2:5000/api/trek/public/trek/${itinerary._id}`
+            )
+            console.log('📦 Trek response:', trekResponse.data)
+            if (trekResponse.data.success && trekResponse.data.trek) {
+              const trek = trekResponse.data.trek
+              companyId =
+                trek.companyId?._id ||
+                trek.companyId ||
+                trek.userId?._id ||
+                trek.userId
+              console.log('🏢 CompanyId from trek API:', companyId)
+            }
+          } catch (trekError) {
+            console.error('❌ Error fetching trek details:', trekError)
+          }
         }
-      )
 
-      console.log('Booking response:', response.data)
+        if (!userId) throw new Error('User ID not found in token')
+        if (!companyId) throw new Error('Company ID not found in itinerary')
+        if (!itinerary._id) throw new Error('Itinerary ID is missing')
 
-      setBookingId(response.data.booking._id)
+        const participantsCount = Number.parseInt(formData.participants)
+        if (isNaN(participantsCount) || participantsCount <= 0) {
+          throw new Error('Invalid number of participants')
+        }
 
-      navigation.navigate('Payment', {
-        bookingId: response.data.booking._id,
-        amount: calculateTotalPrice(),
-        paymentMethod: formData.paymentMethod,
-        userToken: storedToken,
-      })
-    } catch (err) {
-      console.error('Full error:', err)
-      console.error('Error response:', err.response?.data)
-      const errorMessage =
-        err.response?.data?.message || err.message || 'Failed to create booking'
-      Alert.alert('Booking Error', errorMessage)
-    } finally {
-      setIsLoading(false)
+        const bookingData = {
+          userId: userId,
+          trekId: itinerary._id,
+          companyId: companyId,
+          startDate: selectedStartDate,
+          endDate: selectedEndDate,
+          participants: participantsCount,
+          totalPrice: calculateTotalPrice(),
+          status: 'pending',
+          paymentStatus: 'pending',
+          paymentMethod: formData.paymentMethod,
+          specialRequests: formData.specialRequests || '',
+          customerName: formData.fullName,
+          customerEmail: formData.email,
+          customerPhone: formData.phone,
+        }
+
+        console.log('Booking Data:', JSON.stringify(bookingData, null, 2))
+
+        const response = await axios.post(
+          'http://10.0.2.2:5000/api/booking/create',
+          bookingData,
+          {
+            headers: {
+              Authorization: `Bearer ${storedToken}`,
+              'Content-Type': 'application/json',
+            },
+            timeout: 10000, // 10 second timeout
+          }
+        )
+
+        console.log('Booking response:', response.data)
+        setBookingId(response.data.booking._id)
+
+        navigation.navigate('TabNavigator', {
+          screen: 'Home',
+        })
+        break // Success, exit the retry loop
+      } catch (err) {
+        currentTry++
+        console.error('Full error:', err)
+
+        if (currentTry === maxRetries) {
+          const errorMessage =
+            err.message === 'Network Error'
+              ? 'Unable to connect to the server. Please check your internet connection and try again.'
+              : err.response?.data?.message ||
+                err.message ||
+                'Failed to create booking'
+
+          Alert.alert('Booking Error', errorMessage)
+        } else {
+          // Wait for 1 second before retrying
+          await new Promise((resolve) => setTimeout(resolve, 1000))
+        }
+      } finally {
+        if (currentTry === maxRetries) setIsLoading(false)
+      }
     }
   }
 
@@ -287,12 +411,6 @@ function BookingScreen({ navigation, route }) {
     const diffInDays = Math.ceil(diffInMs / (1000 * 60 * 60 * 24))
 
     return diffInDays > 0 ? diffInDays : 1 // Minimum duration is 1 day
-  }
-
-  const calculateTotalPrice = () => {
-    if (!itinerary || !itinerary.price) return 0
-    const participants = Number.parseInt(formData.participants)
-    return itinerary.price * participants
   }
 
   const formatDateRange = (start, end) => {
@@ -384,21 +502,14 @@ function BookingScreen({ navigation, route }) {
             </View>
 
             <View style={styles.infoRow}>
-              <Ionicons name="calendar-outline" size={16} color="#f97316" />
-              <Text style={styles.infoText}>
-                {formatDateRange(itinerary.startDate, itinerary.endDate)}
-              </Text>
-            </View>
-
-            <View style={styles.infoRow}>
               <Ionicons name="time-outline" size={16} color="#f97316" />
-              <Text style={styles.infoText}>{getTripDuration()} days</Text>
+              <Text style={styles.infoText}>{itinerary.duration} days</Text>
             </View>
 
             <View style={styles.priceContainer}>
               <View style={styles.priceRow}>
                 <Text style={styles.priceLabel}>Price per person</Text>
-                <Text style={styles.priceValue}>${itinerary.price}</Text>
+                <Text style={styles.priceValue}>NPR {itinerary.price}</Text>
               </View>
             </View>
           </View>
@@ -451,7 +562,6 @@ function BookingScreen({ navigation, route }) {
           {/* Date Selection */}
           <View style={styles.inputGroup}>
             <Text style={styles.inputLabel}>Trip Dates</Text>
-
             <View style={styles.dateRow}>
               <TouchableOpacity
                 style={styles.dateInput}
@@ -468,32 +578,20 @@ function BookingScreen({ navigation, route }) {
                 </Text>
                 <Ionicons name="calendar-outline" size={20} color="#6B7280" />
               </TouchableOpacity>
-
               <Text style={styles.dateSeparator}>to</Text>
-
-              <TouchableOpacity
-                style={styles.dateInput}
-                onPress={() => setShowEndCalendar(true)}
-                disabled={!selectedStartDate}
-              >
+              <View style={styles.dateInput}>
                 <Text
-                  style={[
-                    selectedEndDate ? styles.dateText : styles.placeholderText,
-                    !selectedStartDate && styles.disabledText,
-                  ]}
+                  style={
+                    selectedEndDate ? styles.dateText : styles.placeholderText
+                  }
                 >
                   {selectedEndDate
                     ? format(new Date(selectedEndDate), 'MMM dd, yyyy')
-                    : 'Select end date'}
+                    : 'End date will be calculated'}
                 </Text>
-                <Ionicons
-                  name="calendar-outline"
-                  size={20}
-                  color={!selectedStartDate ? '#D1D5DB' : '#6B7280'}
-                />
-              </TouchableOpacity>
+                <Ionicons name="calendar-outline" size={20} color="#D1D5DB" />
+              </View>
             </View>
-
             {showStartCalendar && (
               <View style={styles.calendarContainer}>
                 <Calendar
@@ -504,28 +602,6 @@ function BookingScreen({ navigation, route }) {
                   onDayPress={handleStartDateSelect}
                   markedDates={{
                     [selectedStartDate]: {
-                      selected: true,
-                      selectedColor: '#f97316',
-                    },
-                  }}
-                />
-              </View>
-            )}
-
-            {showEndCalendar && (
-              <View style={styles.calendarContainer}>
-                <Calendar
-                  current={
-                    selectedEndDate ||
-                    selectedStartDate ||
-                    new Date().toISOString().split('T')[0]
-                  }
-                  minDate={
-                    selectedStartDate || new Date().toISOString().split('T')[0]
-                  }
-                  onDayPress={handleEndDateSelect}
-                  markedDates={{
-                    [selectedEndDate]: {
                       selected: true,
                       selectedColor: '#f97316',
                     },
@@ -567,30 +643,24 @@ function BookingScreen({ navigation, route }) {
           <View style={styles.inputGroup}>
             <Text style={styles.inputLabel}>Payment Method</Text>
             <View style={styles.paymentContainer}>
-              {['card', 'paypal', 'apple', 'other'].map((method) => (
+              {paymentOptions.map((option) => (
                 <TouchableOpacity
-                  key={method}
+                  key={option.id}
                   style={[
                     styles.paymentButton,
-                    formData.paymentMethod === method &&
+                    formData.paymentMethod === option.id &&
                       styles.paymentButtonActive,
                   ]}
-                  onPress={() => handleInputChange('paymentMethod', method)}
+                  onPress={() => handleInputChange('paymentMethod', option.id)}
                 >
                   <Text
                     style={[
                       styles.paymentButtonText,
-                      formData.paymentMethod === method &&
+                      formData.paymentMethod === option.id &&
                         styles.paymentButtonTextActive,
                     ]}
                   >
-                    {method === 'card'
-                      ? 'Credit/Debit Card'
-                      : method === 'paypal'
-                      ? 'PayPal'
-                      : method === 'apple'
-                      ? 'Apple Pay'
-                      : 'Other'}
+                    {option.label}
                   </Text>
                 </TouchableOpacity>
               ))}
@@ -618,12 +688,12 @@ function BookingScreen({ navigation, route }) {
           <View style={styles.summaryRow}>
             <View>
               <Text style={styles.priceLabel}>Price per person</Text>
-              <Text style={styles.priceValue}>${itinerary.price}</Text>
+              <Text style={styles.priceValue}>NPR {itinerary.price}</Text>
             </View>
             <View style={styles.priceDivider} />
             <View>
               <Text style={styles.totalLabel}>Total Price</Text>
-              <Text style={styles.totalPrice}>${calculateTotalPrice()}</Text>
+              <Text style={styles.totalPrice}>NPR {calculateTotalPrice()}</Text>
             </View>
           </View>
           <TouchableOpacity style={styles.continueButton} onPress={handleNext}>
@@ -717,9 +787,13 @@ function BookingScreen({ navigation, route }) {
 
           <View style={styles.detailRow}>
             <Text style={styles.detailLabel}>Payment Method</Text>
-            <Text style={[styles.detailValue, { textTransform: 'capitalize' }]}>
-              {formData.paymentMethod}
-            </Text>
+            <View style={styles.reviewRow}>
+              <Ionicons name="wallet-outline" size={20} color="#f97316" />
+              <Text style={styles.reviewValue}>
+                {paymentOptions.find((opt) => opt.id === formData.paymentMethod)
+                  ?.label || 'Khalti'}
+              </Text>
+            </View>
           </View>
 
           {formData.specialRequests ? (
@@ -736,7 +810,7 @@ function BookingScreen({ navigation, route }) {
 
           <View style={styles.priceDetailRow}>
             <Text style={styles.priceDetailLabel}>Price per person</Text>
-            <Text style={styles.priceDetailValue}>${itinerary.price}</Text>
+            <Text style={styles.priceDetailValue}>NPR {itinerary.price}</Text>
           </View>
 
           <View style={styles.priceDetailRow}>
@@ -753,7 +827,9 @@ function BookingScreen({ navigation, route }) {
 
           <View style={styles.totalRow}>
             <Text style={styles.totalRowLabel}>Total Price</Text>
-            <Text style={styles.totalRowValue}>${calculateTotalPrice()}</Text>
+            <Text style={styles.totalRowValue}>
+              NPR {calculateTotalPrice()}
+            </Text>
           </View>
         </View>
 
@@ -780,70 +856,153 @@ function BookingScreen({ navigation, route }) {
   )
 
   const renderConfirmationScreen = () => (
-    <View style={styles.confirmationContainer}>
-      <View style={styles.confirmationCard}>
-        <View style={styles.successIconContainer}>
-          <Ionicons name="checkmark-circle" size={60} color="#10b981" />
+    <ScrollView style={styles.scrollView}>
+      <View style={styles.container}>
+        {/* Header */}
+        <View style={styles.headerContainer}>
+          <Text style={styles.headerTitle}>Confirm Your Booking</Text>
+          <Text style={styles.headerSubtitle}>
+            Please confirm your booking details
+          </Text>
         </View>
 
-        <Text style={styles.confirmationTitle}>Booking Confirmed!</Text>
-
-        <Text style={styles.confirmationMessage}>
-          Your booking for {itinerary.title || 'your trek'} has been confirmed.
-          Please complete your payment to secure your spot.
-        </Text>
-
-        <View style={styles.bookingIdContainer}>
-          <View style={styles.bookingIdRow}>
-            <Text style={styles.bookingIdLabel}>Booking ID</Text>
-            <Text style={styles.bookingIdValue}>
-              {bookingId || 'Processing...'}
+        {/* Itinerary Summary */}
+        <View style={styles.trekCard}>
+          <Image
+            source={{
+              uri:
+                itinerary.images && itinerary.images.length > 0
+                  ? itinerary.images[0]
+                  : 'https://via.placeholder.com/400',
+            }}
+            style={styles.trekImage}
+            resizeMode="cover"
+          />
+          <View style={styles.trekCardContent}>
+            <Text style={styles.trekTitle}>
+              {itinerary.title || 'Trek Name'}
+            </Text>
+            <Text style={styles.trekLocation}>
+              {itinerary.location || 'Location not available'}
+            </Text>
+            <Text style={styles.trekDates}>
+              {formatDateRange(selectedStartDate, selectedEndDate)}
             </Text>
           </View>
         </View>
 
-        <View style={styles.bookingStatusContainer}>
-          <View style={styles.statusRow}>
-            <Text style={styles.statusLabel}>Booking Status</Text>
-            <View style={[styles.statusBadge, styles.pendingBadge]}>
-              <Text style={styles.statusBadgeText}>Pending</Text>
-            </View>
+        {/* Personal Details */}
+        <View style={styles.reviewCard}>
+          <Text style={styles.reviewCardTitle}>Personal Details</Text>
+
+          <View style={styles.detailRow}>
+            <Text style={styles.detailLabel}>Name</Text>
+            <Text style={styles.detailValue}>{formData.fullName}</Text>
           </View>
 
-          <View style={styles.statusRow}>
-            <Text style={styles.statusLabel}>Payment Status</Text>
-            <View style={[styles.statusBadge, styles.pendingBadge]}>
-              <Text style={styles.statusBadgeText}>Pending</Text>
-            </View>
+          <View style={styles.detailRow}>
+            <Text style={styles.detailLabel}>Email</Text>
+            <Text style={styles.detailValue}>{formData.email}</Text>
           </View>
 
-          <View style={styles.priceRow}>
-            <Text style={styles.priceLabel}>Amount to Pay</Text>
-            <Text style={styles.priceValue}>${calculateTotalPrice()}</Text>
+          <View style={styles.detailRowLast}>
+            <Text style={styles.detailLabel}>Phone</Text>
+            <Text style={styles.detailValue}>{formData.phone}</Text>
           </View>
         </View>
 
-        <TouchableOpacity
-          style={styles.paymentButton}
-          onPress={() =>
-            navigation.navigate('Payment', {
-              bookingId: bookingId,
-              amount: calculateTotalPrice(),
-              paymentMethod: formData.paymentMethod,
-            })
-          }
-        >
-          <Text style={styles.paymentButtonText}>Proceed to Payment</Text>
-        </TouchableOpacity>
+        {/* Booking Details */}
+        <View style={styles.reviewCard}>
+          <Text style={styles.reviewCardTitle}>Booking Details</Text>
 
-        <TouchableOpacity
-          style={styles.viewBookingsButton}
-          onPress={() => navigation.navigate('MyBookings')}
-        >
-          <Text style={styles.viewBookingsButtonText}>View My Bookings</Text>
-        </TouchableOpacity>
+          <View style={styles.detailRow}>
+            <Text style={styles.detailLabel}>Participants</Text>
+            <Text style={styles.detailValue}>
+              {formData.participants}{' '}
+              {Number(formData.participants) === 1 ? 'person' : 'people'}
+            </Text>
+          </View>
+
+          <View style={styles.detailRow}>
+            <Text style={styles.detailLabel}>Trip Dates</Text>
+            <Text style={styles.detailValue}>
+              {formatDateRange(selectedStartDate, selectedEndDate)}
+            </Text>
+          </View>
+
+          <View style={styles.detailRow}>
+            <Text style={styles.detailLabel}>Duration</Text>
+            <Text style={styles.detailValue}>{getTripDuration()} days</Text>
+          </View>
+
+          <View style={styles.detailRow}>
+            <Text style={styles.detailLabel}>Payment Method</Text>
+            <View style={styles.confirmationRow}>
+              <Ionicons name="wallet-outline" size={20} color="#f97316" />
+              <Text style={styles.confirmationValue}>
+                {paymentOptions.find((opt) => opt.id === formData.paymentMethod)
+                  ?.label || 'Khalti'}
+              </Text>
+            </View>
+          </View>
+
+          {formData.specialRequests ? (
+            <View style={styles.detailRowLast}>
+              <Text style={styles.detailLabel}>Special Requests</Text>
+              <Text style={styles.detailValue}>{formData.specialRequests}</Text>
+            </View>
+          ) : null}
+        </View>
+
+        {/* Price Summary */}
+        <View style={styles.reviewCard}>
+          <Text style={styles.reviewCardTitle}>Price Summary</Text>
+
+          <View style={styles.priceDetailRow}>
+            <Text style={styles.priceDetailLabel}>Price per person</Text>
+            <Text style={styles.priceDetailValue}>NPR {itinerary.price}</Text>
+          </View>
+
+          <View style={styles.priceDetailRow}>
+            <Text style={styles.priceDetailLabel}>Participants</Text>
+            <Text style={styles.priceDetailValue}>{formData.participants}</Text>
+          </View>
+
+          <View style={styles.priceDetailRow}>
+            <Text style={styles.priceDetailLabel}>Duration</Text>
+            <Text style={styles.priceDetailValue}>
+              {getTripDuration()} days
+            </Text>
+          </View>
+
+          <View style={styles.totalRow}>
+            <Text style={styles.totalRowLabel}>Total Price</Text>
+            <Text style={styles.totalRowValue}>
+              NPR {calculateTotalPrice()}
+            </Text>
+          </View>
+        </View>
+
+        {/* Action Buttons */}
+        <View style={styles.actionButtonsContainer}>
+          <TouchableOpacity style={styles.editButton} onPress={handleEdit}>
+            <Text style={styles.editButtonText}>Edit Details</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.confirmButton}
+            onPress={handleConfirm}
+            disabled={isLoading}
+          >
+            {isLoading ? (
+              <ActivityIndicator size="small" color="white" />
+            ) : (
+              <Text style={styles.confirmButtonText}>Confirm Booking</Text>
+            )}
+          </TouchableOpacity>
+        </View>
       </View>
-    </View>
+    </ScrollView>
   )
 
   return (
@@ -1506,6 +1665,32 @@ const styles = StyleSheet.create({
     height: 40,
     backgroundColor: '#E5E7EB',
     marginHorizontal: 16,
+  },
+  reviewRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  reviewValue: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#1F2937',
+    marginLeft: 8,
+  },
+  reviewTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#1F2937',
+    marginBottom: 12,
+  },
+  confirmationRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  confirmationValue: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#1F2937',
+    marginLeft: 8,
   },
 })
 
