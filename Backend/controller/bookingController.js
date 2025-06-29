@@ -40,7 +40,7 @@ export const createBooking = async (req, res) => {
       })
     }
 
-    // Check trek existence
+    //! Check trek existence
     const trek = await Trek.findById(trekId)
     if (!trek) {
       return res.status(404).json({
@@ -49,15 +49,14 @@ export const createBooking = async (req, res) => {
       })
     }
 
-    // Check trek approval
+    //! Check trek approval
     if (!trek.isApproved) {
       return res.status(400).json({
         success: false,
         message: 'This trek is not available for booking',
       })
     }
-
-    // Create booking
+    //! Create booking
     const booking = new Booking({
       userId,
       trekId,
@@ -74,17 +73,13 @@ export const createBooking = async (req, res) => {
       customerEmail,
       customerPhone,
     })
-
     await booking.save()
-
     // Fetch user and company data for emails
     const user = await User.findById(userId)
     const company = await Company.findById(companyId)
-
     const companyName = company?.name || 'the company'
     const companyEmail = company?.email || 'no-reply@example.com'
-
-    // User confirmation email
+    //! User confirmation email
     const userMailOptions = {
       from: process.env.SENDER_EMAIL,
       to: customerEmail,
@@ -106,16 +101,13 @@ export const createBooking = async (req, res) => {
         Regards,
         TrekGuide Team`,
     }
-
     // Company notification email
     const companyMailOptions = {
       from: process.env.SENDER_EMAIL,
       to: companyEmail,
       subject: 'New Booking Notification - TrekGuide',
       text: `Hello ${companyName},
-
         You have received a new booking for ${trek.title}.
-
         Booking Details:
         Customer: ${customerName}
         Email: ${customerEmail}
@@ -130,10 +122,8 @@ export const createBooking = async (req, res) => {
         Regards,
         TrekGuide Team`,
     }
-
     await transporter.sendMail(userMailOptions)
     await transporter.sendMail(companyMailOptions)
-
     return res.status(201).json({
       success: true,
       message: 'Booking created successfully',

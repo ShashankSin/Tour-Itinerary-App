@@ -4,7 +4,6 @@ import jwt from 'jsonwebtoken'
 import mongoose from 'mongoose'
 export const createTrek = async (req, res) => {
   const token = req.cookies.token || req.headers.authorization?.split(' ')[1]
-
   try {
     const {
       title,
@@ -19,7 +18,6 @@ export const createTrek = async (req, res) => {
       inclusions = [],
       route = [],
     } = req.body
-
     if (
       !title ||
       !location ||
@@ -34,12 +32,8 @@ export const createTrek = async (req, res) => {
         message: 'Please provide all required fields',
       })
     }
-
-    // Decode JWT token and extract companyId
     const decoded = jwt.verify(token, process.env.JWT_SECRET)
     const companyId = decoded.id
-
-    // Get company
     const company = await companyModel.findById(companyId)
     if (!company) {
       return res.status(403).json({
@@ -47,12 +41,8 @@ export const createTrek = async (req, res) => {
         message: 'Company not found',
       })
     }
-
-    // Normalize enums
     const normalizedDifficulty = difficulty.toLowerCase()
     const normalizedCategory = category.toLowerCase()
-
-    // Create and save trek
     const trek = new Trek({
       title,
       location,
@@ -68,9 +58,7 @@ export const createTrek = async (req, res) => {
       companyId,
       isApproved: false,
     })
-
     await trek.save()
-
     return res.status(201).json({
       success: true,
       message: 'Trek created successfully',
@@ -414,40 +402,44 @@ export const useritineraryfetch = async (req, res) => {
     const { id } = req.params
     console.log('Public itinerary fetch requested for ID:', id)
 
-    // Validate the ID
     if (!id || id === 'undefined' || !mongoose.Types.ObjectId.isValid(id)) {
-      console.log('Invalid ID provided:', id)
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid itinerary ID',
-      })
+      return res
+        .status(400)
+        .json({ success: false, message: 'Invalid itinerary ID' })
     }
 
-    const itinerary = await Trek.findById(id).populate(
-      'companyId',
-      'name email'
-    )
+    // Fetch the itinerary document WITHOUT populate because companyId is missing in DB
+    const itinerary = await Trek.findById(id).lean()
 
     if (!itinerary) {
-      console.log('Itinerary not found for ID:', id)
       return res
         .status(404)
         .json({ success: false, message: 'Itinerary not found' })
     }
 
-    // Only return approved treks for public access
     if (!itinerary.isApproved) {
-      console.log('Itinerary not approved for ID:', id)
       return res
         .status(404)
         .json({ success: false, message: 'Itinerary not available' })
     }
 
-    console.log('Successfully fetched itinerary:', itinerary.title)
-    res.status(200).json(itinerary)
+    // Use companyId if it exists, else fallback to userId
+    let companyId = itinerary.companyId || null
+
+    if (!companyId && itinerary.userId) {
+      companyId = itinerary.userId
+    }
+
+    console.log('Resolved companyId:', companyId)
+
+    // Return itinerary with companyId field explicitly set
+    return res.status(200).json({
+      ...itinerary,
+      companyId,
+    })
   } catch (error) {
     console.error('Error fetching itinerary:', error)
-    res.status(500).json({ success: false, message: 'Server error' })
+    return res.status(500).json({ success: false, message: 'Server error' })
   }
 }
 
