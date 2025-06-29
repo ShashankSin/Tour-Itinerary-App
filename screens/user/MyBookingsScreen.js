@@ -187,15 +187,9 @@ function MyBookingsScreen({ navigation }) {
           <Ionicons
             name={selectedStatus === 'all' ? 'apps' : 'apps-outline'}
             size={16}
-            color={selectedStatus === 'all' ? '#ffffff' : '#f97316'}
+            color={selectedStatus === 'all' ? '#000000' : '#f97316'}
           />
-          <Text
-            className={`ml-2 text-sm font-semibold text-center ${
-              selectedStatus === 'all'
-                ? 'text-white font-bold'
-                : 'text-slate-500'
-            }`}
-          >
+          <Text className="ml-2 text-sm font-semibold text-center text-black">
             All ({statusCounts.all})
           </Text>
         </TouchableOpacity>
@@ -211,15 +205,9 @@ function MyBookingsScreen({ navigation }) {
           <Ionicons
             name={selectedStatus === 'pending' ? 'time' : 'time-outline'}
             size={16}
-            color={selectedStatus === 'pending' ? '#ffffff' : '#f59e0b'}
+            color={selectedStatus === 'pending' ? '#000000' : '#f59e0b'}
           />
-          <Text
-            className={`ml-2 text-sm font-semibold text-center ${
-              selectedStatus === 'pending'
-                ? 'text-white font-bold'
-                : 'text-slate-500'
-            }`}
-          >
+          <Text className="ml-2 text-sm font-semibold text-center text-black">
             Pending ({statusCounts.pending})
           </Text>
         </TouchableOpacity>
@@ -239,15 +227,9 @@ function MyBookingsScreen({ navigation }) {
                 : 'checkmark-circle-outline'
             }
             size={16}
-            color={selectedStatus === 'confirmed' ? '#ffffff' : '#10b981'}
+            color={selectedStatus === 'confirmed' ? '#000000' : '#10b981'}
           />
-          <Text
-            className={`ml-2 text-sm font-semibold text-center ${
-              selectedStatus === 'confirmed'
-                ? 'text-white font-bold'
-                : 'text-slate-500'
-            }`}
-          >
+          <Text className="ml-2 text-sm font-semibold text-center text-black">
             Confirmed ({statusCounts.confirmed})
           </Text>
         </TouchableOpacity>
@@ -263,15 +245,9 @@ function MyBookingsScreen({ navigation }) {
           <Ionicons
             name={selectedStatus === 'completed' ? 'trophy' : 'trophy-outline'}
             size={16}
-            color={selectedStatus === 'completed' ? '#ffffff' : '#3b82f6'}
+            color={selectedStatus === 'completed' ? '#000000' : '#3b82f6'}
           />
-          <Text
-            className={`ml-2 text-sm font-semibold text-center ${
-              selectedStatus === 'completed'
-                ? 'text-white font-bold'
-                : 'text-slate-500'
-            }`}
-          >
+          <Text className="ml-2 text-sm font-semibold text-center text-black">
             Completed ({statusCounts.completed})
           </Text>
         </TouchableOpacity>
@@ -464,8 +440,8 @@ function MyBookingsScreen({ navigation }) {
   }
 
   return (
-    <SafeAreaView className="flex-1 bg-slate-50">
-      <View className="bg-orange-500 p-5 pt-6 pb-6 rounded-b-3xl shadow-lg">
+    <SafeAreaView className="flex-1">
+      <View className="bg-orange-500 p-5 pt-6 pb-6 rounded-b-3xl shadow-lg mt-7">
         <View className="flex-col items-center">
           <Text className="text-3xl font-bold text-white mb-1">
             My Bookings
@@ -474,7 +450,6 @@ function MyBookingsScreen({ navigation }) {
             View and manage all your upcoming adventures
           </Text>
         </View>
-        <View className="h-1 bg-white rounded-sm mt-3" />
       </View>
 
       {renderStatusFilter()}

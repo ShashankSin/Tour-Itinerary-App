@@ -239,7 +239,7 @@ function CompanyItinerariesScreen() {
   const pickImage = async () => {
     try {
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: [ImagePicker.MediaType.Images],
+        mediaTypes: ImagePicker.MediaTypeOptions.Images, // Changed from ImagePicker.MediaType.Images
         allowsEditing: true,
         aspect: [16, 9],
         quality: 1,

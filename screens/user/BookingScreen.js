@@ -110,8 +110,10 @@ function BookingScreen({ navigation, route }) {
         const response = await axios.get(
           `http://10.0.2.2:5000/api/trek/public/itinerary/${trekId}`
         )
+
         console.log('Fetched itinerary:', response.data)
         console.log('Itinerary companyId:', response.data.companyId)
+
         setItinerary(response.data)
       } catch (err) {
         console.error('Error fetching itinerary details:', err)
@@ -278,56 +280,53 @@ function BookingScreen({ navigation, route }) {
         console.log('Decoded token:', decodedToken)
         console.log('Extracted user ID:', userId)
 
+        console.log('Initial extracted companyId:', itinerary.companyId)
         if (!itinerary) throw new Error('Itinerary not loaded yet')
+        let companyId = null
+        // Try to extract companyId from itinerary.companyId or fallback to itinerary.userId
+        if (itinerary.companyId) {
+          companyId =
+            typeof itinerary.companyId === 'object'
+              ? itinerary.companyId._id
+              : itinerary.companyId
+        }
 
-        // Extract companyId from itinerary - handle both companyId and userId fields
-        let companyId =
-          itinerary.companyId?._id ||
-          itinerary.companyId ||
-          itinerary.userId?._id ||
-          itinerary.userId
+        console.log('Initial extracted companyId:', companyId)
 
-        console.log('🔍 Debugging companyId extraction:')
-        console.log(
-          '📋 Full itinerary object:',
-          JSON.stringify(itinerary, null, 2)
-        )
-        console.log('🏢 itinerary.companyId:', itinerary.companyId)
-        console.log('👤 itinerary.userId:', itinerary.userId)
-        console.log(
-          '🏢 typeof itinerary.companyId:',
-          typeof itinerary.companyId
-        )
-        console.log('👤 typeof itinerary.userId:', typeof itinerary.userId)
-        console.log('🏢 itinerary.companyId._id:', itinerary.companyId?._id)
-        console.log('👤 itinerary.userId._id:', itinerary.userId?._id)
-        console.log('🏢 Extracted companyId:', companyId)
-        console.log('🏢 Final companyId type:', typeof companyId)
-
-        // If companyId is still not found, try to fetch it from the trek directly
+        // If companyId still missing, fetch trek details from API and extract userId as companyId
         if (!companyId && itinerary._id) {
-          console.log('🔄 CompanyId not found, trying to fetch trek details...')
+          console.log('CompanyId missing, fetching trek details...')
           try {
             const trekResponse = await axios.get(
               `http://10.0.2.2:5000/api/trek/public/trek/${itinerary._id}`
             )
-            console.log('📦 Trek response:', trekResponse.data)
+            console.log(
+              'Trek response:',
+              JSON.stringify(trekResponse.data, null, 2)
+            )
+
             if (trekResponse.data.success && trekResponse.data.trek) {
               const trek = trekResponse.data.trek
               companyId =
-                trek.companyId?._id ||
                 trek.companyId ||
-                trek.userId?._id ||
-                trek.userId
-              console.log('🏢 CompanyId from trek API:', companyId)
+                (trek.userId
+                  ? typeof trek.userId === 'object'
+                    ? trek.userId._id
+                    : trek.userId
+                  : null)
+              console.log('CompanyId from trek API:', companyId)
             }
           } catch (trekError) {
-            console.error('❌ Error fetching trek details:', trekError)
+            console.error('Error fetching trek details:', trekError)
           }
         }
 
+        console.log('Final companyId to be used:', companyId)
+
+        // Validation
         if (!userId) throw new Error('User ID not found in token')
-        if (!companyId) throw new Error('Company ID not found in itinerary')
+        if (!companyId)
+          throw new Error('Company ID not found in itinerary or trek')
         if (!itinerary._id) throw new Error('Itinerary ID is missing')
 
         const participantsCount = Number.parseInt(formData.participants)
@@ -362,7 +361,7 @@ function BookingScreen({ navigation, route }) {
               Authorization: `Bearer ${storedToken}`,
               'Content-Type': 'application/json',
             },
-            timeout: 10000, // 10 second timeout
+            timeout: 10000,
           }
         )
 
@@ -372,7 +371,8 @@ function BookingScreen({ navigation, route }) {
         navigation.navigate('TabNavigator', {
           screen: 'Home',
         })
-        break // Success, exit the retry loop
+
+        break // success, exit retry loop
       } catch (err) {
         currentTry++
         console.error('Full error:', err)
@@ -387,7 +387,7 @@ function BookingScreen({ navigation, route }) {
 
           Alert.alert('Booking Error', errorMessage)
         } else {
-          // Wait for 1 second before retrying
+          // Wait 1 second before retry
           await new Promise((resolve) => setTimeout(resolve, 1000))
         }
       } finally {

@@ -11,6 +11,9 @@ import { Ionicons } from '@expo/vector-icons'
 
 const { width } = Dimensions.get('window')
 
+// Change this based on your environment
+const SERVER_BASE_URL = 'http://10.0.2.2:5000'
+
 const TrekCard = ({ trek, onPress }) => {
   const [imageErrors, setImageErrors] = useState({})
 
@@ -22,7 +25,6 @@ const TrekCard = ({ trek, onPress }) => {
     const hasImages = trek.images && trek.images.length > 0
     const fallbackImage = 'https://via.placeholder.com/800x600?text=No+Image'
 
-    // If no images, show fallback
     if (!hasImages) {
       return (
         <Image
@@ -40,25 +42,33 @@ const TrekCard = ({ trek, onPress }) => {
         pagingEnabled
         className="w-full h-40"
       >
-        {trek.images.map((image, index) => (
-          <View key={index} className="w-72 h-40">
-            <Image
-              source={{
-                uri: imageErrors[index] ? fallbackImage : image,
-              }}
-              className="w-full h-full"
-              resizeMode="cover"
-              onError={() => handleImageError(index)}
-            />
-            {trek.images.length > 1 && (
-              <View className="absolute bottom-2 right-2 bg-black/50 rounded-full px-2 py-1">
-                <Text className="text-white text-xs font-medium">
-                  {index + 1}/{trek.images.length}
-                </Text>
-              </View>
-            )}
-          </View>
-        ))}
+        {trek.images.map((image, index) => {
+          const imageUrl = imageErrors?.[index]
+            ? fallbackImage
+            : image?.startsWith('http')
+            ? image
+            : `${SERVER_BASE_URL}/uploads/${image}`
+
+          console.log('Image URL:', imageUrl)
+
+          return (
+            <View key={index} className="w-72 h-40">
+              <Image
+                source={{ uri: imageUrl }}
+                className="w-full h-full"
+                resizeMode="cover"
+                onError={() => handleImageError(index)}
+              />
+              {trek.images.length > 1 && (
+                <View className="absolute bottom-2 right-2 bg-black/50 rounded-full px-2 py-1">
+                  <Text className="text-white text-xs font-medium">
+                    {index + 1}/{trek.images.length}
+                  </Text>
+                </View>
+              )}
+            </View>
+          )
+        })}
       </ScrollView>
     )
   }
