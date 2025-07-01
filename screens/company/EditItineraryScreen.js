@@ -79,19 +79,31 @@ function EditItineraryScreen({ route, navigation }) {
 
         const data = response.data
         console.log('Fetched Data:', data)
-
+        const trek = data.trek
         setForm({
-          title: data.title || '',
-          location: data.location || '',
-          description: data.description || '',
-          duration: String(data.duration || ''),
-          price: String(data.price || ''),
-          difficulty: data.difficulty || 'moderate',
-          category: data.category || 'hiking',
-          images: data.images || [],
-          itinerary: data.itinerary || [{ day: 1, title: '', description: '' }],
-          inclusions: data.inclusions || [''],
-          route: data.route || [],
+          title: trek.title ?? '',
+          location: trek.location ?? '',
+          description: trek.description ?? '',
+          duration: String(trek.duration ?? ''),
+          price: String(trek.price ?? ''),
+          difficulty: trek.difficulty ?? 'moderate',
+          category: trek.category ?? 'hiking',
+          images: trek.images ?? [],
+
+          itinerary: trek.itinerary?.map((d, i) => ({
+            day: d.day ?? i + 1,
+            title: d.title ?? '',
+            description: d.description ?? '',
+          })) ?? [{ day: 1, title: '', description: '' }],
+
+          inclusions: trek.inclusions?.length ? trek.inclusions : [''],
+          route: trek.route ?? [],
+
+          /* read‑only display fields */
+          companyName: trek.companyId?.name ?? '',
+          rating: trek.rating ?? '',
+          ratingCount: trek.ratingCount ?? '',
+          updatedAt: trek.updatedAt ?? '',
         })
       } catch (error) {
         console.error('Error fetching itinerary:', error)
@@ -112,43 +124,39 @@ function EditItineraryScreen({ route, navigation }) {
   }
 
   const handleUpdate = async () => {
-    setUpdating(true)
-    try {
-      // Validate form
-      if (
-        !form.title ||
-        !form.location ||
-        !form.description ||
-        !form.duration ||
-        !form.price
-      ) {
-        Alert.alert('Error', 'Please fill all required fields')
-        setUpdating(false)
-        return
-      }
+    if (
+      !form.title ||
+      !form.location ||
+      !form.description ||
+      !form.duration ||
+      !form.price
+    ) {
+      Alert.alert('Error', 'Please fill all required fields')
+      return
+    }
 
-      const response = await axios.put(
-        `http://10.0.2.2:5000/api/trek/company/itinerary/${trekId}`,
+    try {
+      setUpdating(true)
+      const token = await AsyncStorage.getItem('token')
+
+      await axios.put(
+        `http://10.0.2.2:5000/api/trek/update/${trekId}`,
         {
-          title: form.title,
-          location: form.location,
-          description: form.description,
-          duration: Number.parseInt(form.duration),
-          price: Number.parseFloat(form.price),
-          difficulty: form.difficulty,
-          category: form.category,
-          images: form.images,
-          itinerary: form.itinerary,
-          inclusions: form.inclusions,
-          route: form.route,
-        }
+          ...form,
+          duration: Number(form.duration),
+          price: Number(form.price),
+        },
+        { headers: { Authorization: `Bearer ${token}` } }
       )
 
       Alert.alert('Success', 'Itinerary updated successfully!')
       navigation.goBack()
-    } catch (error) {
-      console.error('Update failed:', error)
-      Alert.alert('Error', 'Failed to update itinerary.')
+    } catch (err) {
+      console.error('Update failed:', err.response?.data || err.message)
+      Alert.alert(
+        'Error',
+        err.response?.data?.message || 'Failed to update itinerary.'
+      )
     } finally {
       setUpdating(false)
     }
@@ -657,8 +665,21 @@ function EditItineraryScreen({ route, navigation }) {
               <Text style={styles.formStepText}>3</Text>
             </View>
           </View>
-
-          {renderFormStep()}
+          {loading ? (
+            <View
+              style={{
+                flex: 1,
+                justifyContent: 'center',
+                alignItems: 'center',
+                marginTop: 50,
+              }}
+            >
+              <ActivityIndicator size="large" color="#0000ff" />
+              <Text style={{ marginTop: 10 }}>Loading itinerary...</Text>
+            </View>
+          ) : (
+            renderFormStep()
+          )}
         </ScrollView>
       </KeyboardAvoidingView>
     </View>
